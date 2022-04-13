@@ -3247,6 +3247,9 @@ const errorMapper = function (next) {
 };
 
 const loop = errorMapper(() => {
+    for (let i in Game.rooms) {
+        console.log(i);
+    }
 });
 
 exports.loop = loop;

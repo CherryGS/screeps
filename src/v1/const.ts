@@ -1,0 +1,1 @@
+export const CREEP_ROLE_MINER = "Miner";

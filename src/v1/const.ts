@@ -1,4 +1,4 @@
-const CREEP_ROLE_MINER = "Miner";
-const CREEP_ROLE_CARRYER = "Carrier";
-const CREEP_STATUS_HARVEST = "harvesting";
-const CREEP_STATUS_CARRY = "carrying";
+export const CREEP_ROLE_MINER = "Miner";
+export const CREEP_ROLE_CARRYER = "Carrier";
+export const CREEP_STATUS_HARVEST = "harvesting";
+export const CREEP_STATUS_CARRY = "carrying";

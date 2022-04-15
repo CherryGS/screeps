@@ -3248,30 +3248,6 @@ const errorMapper = function (next) {
     }
 };
 
-function create_miner(room) {
-    let cnt = 0;
-    for (let creep of room.find(FIND_CREEPS)) {
-        if (creep.memory.role === CREEP_ROLE_MINER) {
-            ++cnt;
-        }
-    }
-    for (let spawn of room.find(FIND_MY_SPAWNS)) {
-        if (cnt > 3) {
-            break;
-        }
-        let new_creep = spawn.spawning;
-        if (new_creep === null) {
-            let status_code = spawn.spawnCreep(['work', 'work', 'carry', 'move'], CREEP_ROLE_MINER + Date.now(), { memory: { role: CREEP_ROLE_MINER } });
-            if (status_code == OK) {
-                ++cnt;
-            }
-            else {
-                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
-            }
-        }
-    }
-}
-
 var lodash = {exports: {}};
 
 /**
@@ -15615,6 +15591,32 @@ var lodash = {exports: {}};
 }.call(commonjsGlobal));
 }(lodash, lodash.exports));
 
+const CREEP_ROLE_MINER = "Miner";
+const CREEP_STATUS_HARVEST = "harvesting";
+const CREEP_STATUS_CARRY = "carrying";
+
+function create_miner(room) {
+    let cnt = lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_MINER } } }));
+    console.log(`Now have ${cnt} harvesters`);
+    for (let spawn of room.find(FIND_MY_SPAWNS)) {
+        if (cnt > 3) {
+            break;
+        }
+        let new_creep = spawn.spawning;
+        if (new_creep === null) {
+            let status_code = spawn.spawnCreep(['work', 'carry', 'carry', 'move'], CREEP_ROLE_MINER + Date.now(), { memory: { role: CREEP_ROLE_MINER, status: CREEP_STATUS_HARVEST } });
+            if (status_code == OK) {
+                ++cnt;
+                let spawningCreep = Game.creeps[spawn.spawning.name];
+                room.visual.text('🛠️' + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
+            }
+            else {
+                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
+            }
+        }
+    }
+}
+
 function update_controller(creep) {
     if (creep.memory.status !== CREEP_STATUS_CARRY) {
         return -1;
@@ -15630,7 +15632,7 @@ function harvest_source(creep) {
         return -1;
     }
     let room = creep.room;
-    if (creep.memory.source === null) {
+    if (creep.memory.source === undefined) {
         for (let mine of lodash.exports.shuffle(room.find(FIND_SOURCES))) {
             creep.memory.source = mine.id;
         }
@@ -15644,6 +15646,9 @@ function work_source(creep) {
     if (creep.memory.role !== CREEP_ROLE_MINER) {
         return -1;
     }
+    if (creep.memory.status === undefined) {
+        creep.memory.status = CREEP_STATUS_HARVEST;
+    }
     if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() == 0) {
         creep.memory.status = CREEP_STATUS_HARVEST;
     }
@@ -15656,9 +15661,16 @@ function work_source(creep) {
     if (creep.memory.status === CREEP_STATUS_HARVEST) {
         harvest_source(creep);
     }
+    return 0;
 }
 
 const loop = errorMapper(() => {
+    for (let name in Memory.creeps) {
+        if (!Game.creeps[name]) {
+            delete Memory.creeps[name];
+            console.log('Clearing non-existing creep memory:', name);
+        }
+    }
     let creeps = Game.creeps;
     let rooms = Game.rooms;
     for (let i in rooms) {

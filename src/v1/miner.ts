@@ -1,13 +1,15 @@
 import { shuffle } from "lodash";
-import { CREEP_ROLE_MINER } from "./const";
 
-function check_source_is_available(id: Id<Source>) {
-    let mine = Game.getObjectById(id);
-
-}
-export function work_source(creep: Creep) {
+function update_controller(creep: Creep) {
+    if (creep.memory.status !== CREEP_STATUS_CARRY) { return -1; }
     let room = creep.room;
-    if (creep.memory.role !== CREEP_ROLE_MINER) { return -1; }
+    let controller = room.controller;
+    if (creep.upgradeController(controller) == ERR_NOT_IN_RANGE) { creep.moveTo(controller); }
+}
+
+function harvest_source(creep: Creep) {
+    if (creep.memory.status !== CREEP_STATUS_HARVEST) { return -1; }
+    let room = creep.room;
     if (creep.memory.source === null) {
         for (let mine of shuffle(room.find(FIND_SOURCES))) {
             creep.memory.source = mine.id;
@@ -15,4 +17,11 @@ export function work_source(creep: Creep) {
     }
     let source = Game.getObjectById(creep.memory.source);
     if (creep.harvest(source) === ERR_NOT_IN_RANGE) { creep.moveTo(source); }
+}
+export function work_source(creep: Creep) {
+    if (creep.memory.role !== CREEP_ROLE_MINER) { return -1; }
+    if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() == 0) { creep.memory.status = CREEP_STATUS_HARVEST; }
+    if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() == 0) { creep.memory.status = CREEP_STATUS_CARRY; }
+    if (creep.memory.status === CREEP_STATUS_CARRY) { update_controller(creep); }
+    if (creep.memory.status === CREEP_STATUS_HARVEST) { harvest_source(creep); }
 }

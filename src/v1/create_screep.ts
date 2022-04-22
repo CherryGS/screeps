@@ -1,24 +1,74 @@
 import { size } from "lodash";
-import { CREEP_ROLE_MINER, CREEP_STATUS_HARVEST } from "./const";
+import { CREEP_ROLE_BASIC, CREEP_ROLE_MINER, CREEP_STATUS_HARVEST } from "./const";
 
-export function create_miner(room: Room) {
-    let cnt = size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_MINER } } }));
-    console.log(`Now have ${cnt} harvesters`);
-    for (let spawn of room.find(FIND_MY_SPAWNS)) {
-        if (cnt > 3) { break; }
-        let new_creep = spawn.spawning;
-        if (new_creep === null) {
-            let status_code = spawn.spawnCreep(
-                ['work', 'carry', 'carry', 'move'],
-                CREEP_ROLE_MINER + Date.now(),
-                { memory: { role: CREEP_ROLE_MINER, status: CREEP_STATUS_HARVEST } }
-            );
+/**
+ * 在指定的房间生成指定数量的定制 Creep
+ * @param room 需要生成的房间
+ * @param cnt 生成的数量
+ * @param body Creep 的 Body
+ * @param name Creep 的 Name
+ * @param opts 其他的东西
+ */
+function create_creep_by_room(room: Room, cnt: number, body: BodyPartConstant[], name: string, opts?: SpawnOptions) {
+    for (const spawn of room.find(FIND_MY_SPAWNS)) {
+        if (cnt <= 0) {
+            break;
+        }
+        const spawn_status = spawn.spawning;
+        if (spawn_status === null) {
+            const status_code = spawn.spawnCreep(body, name, opts);
             if (status_code == OK) {
-                ++cnt;
-                let spawningCreep = Game.creeps[spawn.spawning.name];
-                room.visual.text('🛠️' + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
+                --cnt;
+                const spawningCreep = Game.creeps[name];
+                room.visual.text("🛠️" + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
+            } else {
+                // 如果生成 Creep 失败则报错
+                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
             }
-            else { console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `); }
         }
     }
+}
+export function create_miner(room: Room) {
+    let cnt = size(
+        room.find(FIND_MY_CREEPS, {
+            filter: { memory: { role: CREEP_ROLE_MINER } },
+        })
+    );
+    console.log(`Now have ${cnt} harvesters`);
+    for (const spawn of room.find(FIND_MY_SPAWNS)) {
+        if (cnt > 3) {
+            break;
+        }
+        const new_creep = spawn.spawning;
+        if (new_creep === null) {
+            const status_code = spawn.spawnCreep(["work", "carry", "move"], CREEP_ROLE_MINER + Date.now(), {
+                memory: {
+                    role: CREEP_ROLE_MINER,
+                    status: CREEP_STATUS_HARVEST,
+                },
+            });
+            if (status_code == OK) {
+                ++cnt;
+                const spawningCreep = Game.creeps[spawn.spawning.name];
+                room.visual.text("🛠️" + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
+            } else {
+                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
+            }
+        }
+    }
+}
+
+export function create_basic(room: Room) {
+    // 确定要生成的数量
+    const cnt = 4 - size(
+        room.find(
+            FIND_MY_CREEPS,
+            { filter: { memory: { role: CREEP_ROLE_BASIC } }, }
+        )
+    );
+    create_creep_by_room(room, cnt,
+        ["work", "carry", "move"],
+        CREEP_ROLE_BASIC + Date.now(),
+        { memory: { role: CREEP_ROLE_BASIC }, }
+    );
 }

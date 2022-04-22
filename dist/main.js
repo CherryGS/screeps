@@ -15591,94 +15591,147 @@ var lodash = {exports: {}};
 }.call(commonjsGlobal));
 }(lodash, lodash.exports));
 
-const CREEP_ROLE_MINER = "Miner";
+const CREEP_ROLE_BASIC = "Basic";
 const CREEP_STATUS_HARVEST = "harvesting";
 const CREEP_STATUS_CARRY = "carrying";
 
-function create_miner(room) {
-    let cnt = lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_MINER } } }));
-    console.log(`Now have ${cnt} harvesters`);
-    for (let spawn of room.find(FIND_MY_SPAWNS)) {
-        if (cnt > 3) {
+/**
+ * 切换 creep 状态并初始化一些变量
+ * @param creep
+ */
+function change_creep_status(creep) {
+    // 状态切换
+    let flag = false;
+    if (creep.memory.status === undefined) {
+        creep.memory.status = CREEP_STATUS_HARVEST;
+        flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
+        creep.memory.status = CREEP_STATUS_CARRY;
+        flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() <= 0) {
+        creep.memory.status = CREEP_STATUS_HARVEST;
+        flag = true;
+    }
+    // 如果发生切换 , 初始化 creep 部分内容
+    if (flag) {
+        delete creep.memory.target;
+    }
+}
+/**
+ * 自主 采能量 / 运输 / 升级控制器
+ * @param creep
+ */
+function run_basic(creep) {
+    // 判断是否满足条件 ( work + carry + move )
+    let flag = 0;
+    for (const c of creep.body) {
+        if (c.type === "work") {
+            flag |= (1 << 0);
+        }
+        else if (c.type === "carry") {
+            flag |= (1 << 1);
+        }
+        else if (c.type === "move") {
+            flag |= (1 << 2);
+        }
+    }
+    if (flag !== 0b111) {
+        console.log(`基本的采矿动作运行出错 , 因为指定的 ${creep.name} 不具有所有需要的身体部件`);
+        return;
+    }
+    // 切换状态
+    change_creep_status(creep);
+    // 在采集状态时采集能量
+    if (creep.memory.status === CREEP_STATUS_HARVEST) {
+        if (creep.memory.source === undefined) {
+            creep.memory.source = lodash.exports.shuffle(creep.room.find(FIND_SOURCES))[0].id;
+        }
+        const source = Game.getObjectById(creep.memory.source);
+        if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
+            creep.moveTo(source, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+    }
+    // 在运输状态时运输能量到 Extension / Spawn
+    if (creep.memory.status === CREEP_STATUS_CARRY) {
+        if (creep.memory.target === undefined) {
+            creep.memory.target = creep.room.find(FIND_MY_STRUCTURES, {
+                filter: (structure) => {
+                    return (structure.structureType == STRUCTURE_EXTENSION || structure.structureType == STRUCTURE_SPAWN) &&
+                        structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
+                }
+            })[0].id;
+            // 如果还是 undefined 则说明全满 , 此时升级控制器
+            if (creep.memory.target === undefined) {
+                creep.memory.target = creep.room.controller.id;
+            }
+        }
+        const target = Game.getObjectById(creep.memory.target);
+        if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+    }
+}
+
+/**
+ * 在指定的房间生成指定数量的定制 Creep
+ * @param room 需要生成的房间
+ * @param cnt 生成的数量
+ * @param body Creep 的 Body
+ * @param name Creep 的 Name
+ * @param opts 其他的东西
+ */
+function create_creep_by_room(room, cnt, body, name, opts) {
+    for (const spawn of room.find(FIND_MY_SPAWNS)) {
+        if (cnt <= 0) {
             break;
         }
-        let new_creep = spawn.spawning;
-        if (new_creep === null) {
-            let status_code = spawn.spawnCreep(['work', 'carry', 'carry', 'move'], CREEP_ROLE_MINER + Date.now(), { memory: { role: CREEP_ROLE_MINER, status: CREEP_STATUS_HARVEST } });
+        const spawn_status = spawn.spawning;
+        if (spawn_status === null) {
+            const status_code = spawn.spawnCreep(body, name, opts);
             if (status_code == OK) {
-                ++cnt;
-                let spawningCreep = Game.creeps[spawn.spawning.name];
-                room.visual.text('🛠️' + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
+                --cnt;
+                const spawningCreep = Game.creeps[name];
+                room.visual.text("🛠️" + spawningCreep.memory.role, spawn.pos.x, spawn.pos.y);
             }
             else {
+                // 如果生成 Creep 失败则报错
                 console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
             }
         }
     }
 }
-
-function update_controller(creep) {
-    if (creep.memory.status !== CREEP_STATUS_CARRY) {
-        return -1;
-    }
-    let room = creep.room;
-    let controller = room.controller;
-    if (creep.upgradeController(controller) == ERR_NOT_IN_RANGE) {
-        creep.moveTo(controller);
-    }
+function create_basic(room) {
+    // 确定要生成的数量
+    const cnt = 4 - lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }));
+    create_creep_by_room(room, cnt, ["work", "carry", "move"], CREEP_ROLE_BASIC + Date.now(), { memory: { role: CREEP_ROLE_BASIC }, });
 }
-function harvest_source(creep) {
-    if (creep.memory.status !== CREEP_STATUS_HARVEST) {
-        return -1;
-    }
-    let room = creep.room;
-    if (creep.memory.source === undefined) {
-        for (let mine of lodash.exports.shuffle(room.find(FIND_SOURCES))) {
-            creep.memory.source = mine.id;
+
+function run() {
+    // 清理已死亡 creeps 内存
+    for (const name in Memory.creeps) {
+        if (!Game.creeps[name]) {
+            delete Memory.creeps[name];
+            console.log("Clearing non-existing creep memory:", name);
         }
     }
-    let source = Game.getObjectById(creep.memory.source);
-    if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
-        creep.moveTo(source);
+    if (Game.gcl.level <= 2) {
+        // gcl 过低时只考虑最基础的 Creep
+        for (const room_hash in Game.rooms) {
+            create_basic(Game.rooms[room_hash]);
+        }
     }
-}
-function work_source(creep) {
-    if (creep.memory.role !== CREEP_ROLE_MINER) {
-        return -1;
+    for (const creep_hash in Game.creeps) {
+        const creep = Game.creeps[creep_hash];
+        if (creep.memory.role === CREEP_ROLE_BASIC) {
+            run_basic(creep);
+        }
     }
-    if (creep.memory.status === undefined) {
-        creep.memory.status = CREEP_STATUS_HARVEST;
-    }
-    if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() == 0) {
-        creep.memory.status = CREEP_STATUS_HARVEST;
-    }
-    if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() == 0) {
-        creep.memory.status = CREEP_STATUS_CARRY;
-    }
-    if (creep.memory.status === CREEP_STATUS_CARRY) {
-        update_controller(creep);
-    }
-    if (creep.memory.status === CREEP_STATUS_HARVEST) {
-        harvest_source(creep);
-    }
-    return 0;
 }
 
 const loop = errorMapper(() => {
-    for (let name in Memory.creeps) {
-        if (!Game.creeps[name]) {
-            delete Memory.creeps[name];
-            console.log('Clearing non-existing creep memory:', name);
-        }
-    }
-    let creeps = Game.creeps;
-    let rooms = Game.rooms;
-    for (let i in rooms) {
-        create_miner(rooms[i]);
-    }
-    for (let i in creeps) {
-        work_source(creeps[i]);
-    }
+    run();
 });
 
 exports.loop = loop;

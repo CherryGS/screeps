@@ -13,6 +13,11 @@ interface CreepMemory {
      *  creep 当前工作状态
      */
     status?: string;
+
+    /**
+     *  creep 当前目标 id , 注意及时清空
+     */
+    target?: string;
 }
 
 interface Creep {

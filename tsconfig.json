@@ -9,6 +9,9 @@
         "paths": {
             "@/*": [
                 "./src/*"
+            ],
+            "@modules/*": [
+                "./src/modules/*"
             ]
         }
     },

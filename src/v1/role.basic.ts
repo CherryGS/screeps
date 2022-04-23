@@ -1,5 +1,6 @@
-import { filter, shuffle } from "lodash";
-import { CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST } from "./const";
+import { eudis } from "@/modules/utils";
+import { shuffle, sortBy } from "lodash";
+import { CREEP_STATUS_BUILD, CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST } from "./const";
 
 /**
  * 切换 creep 状态并初始化一些变量
@@ -8,9 +9,22 @@ import { CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST } from "./const";
 function change_creep_status(creep: Creep) {
     // 状态切换
     let flag = false;
-    if (creep.memory.status === undefined) { creep.memory.status = CREEP_STATUS_HARVEST; flag = true; }
-    else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) { creep.memory.status = CREEP_STATUS_CARRY; flag = true; }
-    else if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() <= 0) { creep.memory.status = CREEP_STATUS_HARVEST; flag = true; }
+    if (creep.memory.status === undefined) {
+        creep.memory.status = CREEP_STATUS_HARVEST;
+        flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
+        creep.memory.status = CREEP_STATUS_BUILD;
+        flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_BUILD && (creep.memory.target === undefined || creep.store.getUsedCapacity() <= 0)) {
+        creep.memory.status = CREEP_STATUS_CARRY;
+        flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() <= 0) {
+        creep.memory.status = CREEP_STATUS_HARVEST;
+        flag = true;
+    }
     // 如果发生切换 , 初始化 creep 部分内容
     if (flag) {
         delete creep.memory.target;
@@ -18,7 +32,7 @@ function change_creep_status(creep: Creep) {
 }
 
 /**
- * 自主 采能量 / 运输 / 升级控制器
+ * 自主 采能量 / 建造建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
  * @param creep 
  */
 export function run_basic(creep: Creep) {
@@ -30,7 +44,7 @@ export function run_basic(creep: Creep) {
         else if (c.type === "move") { flag |= (1 << 2); }
     }
     if (flag !== 0b111) {
-        console.log(`基本的采矿动作运行出错 , 因为指定的 ${creep.name} 不具有所有需要的身体部件`);
+        console.log(`role.basic 运行出错 , 因为指定的 ${creep.name} 不具有所有需要的身体部件`);
         return;
     }
 
@@ -44,6 +58,22 @@ export function run_basic(creep: Creep) {
         }
         const source = Game.getObjectById(creep.memory.source);
         if (creep.harvest(source) === ERR_NOT_IN_RANGE) { creep.moveTo(source, { visualizePathStyle: { stroke: "#ffffff" } }); }
+    }
+
+    // 在建造状态时开始建造
+    if (creep.memory.status === CREEP_STATUS_BUILD) {
+        // 如果该建筑工地已经完成则删除
+        const t = Game.getObjectById(creep.memory.target);
+        if (t === null) { delete creep.memory.target; }
+        // 寻找建筑工地
+        if (creep.memory.target === undefined) {
+            const res = sortBy(creep.room.find(FIND_CONSTRUCTION_SITES), (o) => { return eudis(o.pos, creep.pos); });
+            if (res.length) { creep.memory.target = res[0].id; }
+        }
+        if (creep.memory.target !== undefined) {
+            const construction: ConstructionSite = Game.getObjectById(creep.memory.target);
+            if (creep.build(construction) === ERR_NOT_IN_RANGE) { creep.moveTo(construction, { visualizePathStyle: { stroke: "#ffffff" } }); }
+        }
     }
 
     // 在运输状态时运输能量到 Extension / Spawn

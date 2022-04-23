@@ -1,3 +1,4 @@
+import { MAP_COST_STRUCTURE_SPAWN } from "@/v1/const";
 import { memoize } from "lodash";
 
 /**
@@ -18,3 +19,19 @@ export const cacu_body_cost = memoize((body: BodyPartConstant[]) => {
     return sum;
 }
 );
+
+export function print_cost_matrix(cost: CostMatrix, room: Room) {
+    for (let i = 0; i < 50; ++i) {
+        for (let j = 0; j < 50; ++j) {
+            const r = cost.get(i, j);
+            if (r < 255) { room.visual.text(String(r), i, j); }
+            else if (r === MAP_COST_STRUCTURE_SPAWN) {
+                room.visual.text("S", i, j, { font: 0.1 });
+            }
+        }
+    }
+}
+
+export function eudis(pos1: RoomPosition | { x: number, y: number }, pos2: RoomPosition | { x: number, y: number }) {
+    return Math.abs(pos1.x - pos2.x) + Math.abs(pos1.y - pos2.y);
+}

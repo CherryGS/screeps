@@ -20,6 +20,14 @@ interface CreepMemory {
     target?: string;
 }
 
-interface Creep {
-    memory: CreepMemory;
+interface RoomMemory {
+    /**
+     * CostMatrix 矩阵的压缩形式 , 用来储存道路信息
+     */
+    map?: number[];
+
+    /**
+     * 该房间中心 spawn 的名字
+     */
+    main_spawn?: string;
 }

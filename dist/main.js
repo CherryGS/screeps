@@ -15656,23 +15656,65 @@ function run_basic(creep) {
     // 在运输状态时运输能量到 Extension / Spawn
     if (creep.memory.status === CREEP_STATUS_CARRY) {
         if (creep.memory.target === undefined) {
-            creep.memory.target = creep.room.find(FIND_MY_STRUCTURES, {
+            const target = creep.room.find(FIND_MY_STRUCTURES, {
                 filter: (structure) => {
                     return (structure.structureType == STRUCTURE_EXTENSION || structure.structureType == STRUCTURE_SPAWN) &&
                         structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
                 }
-            })[0].id;
+            })[0];
             // 如果还是 undefined 则说明全满 , 此时升级控制器
-            if (creep.memory.target === undefined) {
+            if (target === undefined) {
                 creep.memory.target = creep.room.controller.id;
+            }
+            else {
+                creep.memory.target = target.id;
             }
         }
         const target = Game.getObjectById(creep.memory.target);
-        if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) {
+        const status_code = creep.transfer(target, RESOURCE_ENERGY);
+        if (status_code === ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+        // 有可能 transfer 的目标刚刚没满现在满了 , 那么删除它
+        else if (status_code === ERR_FULL) {
+            delete creep.memory.target;
         }
     }
 }
+
+/**
+ * 通过 body 计算该 Creep 的生成花费
+ */
+const cacu_body_cost = lodash.exports.memoize((body) => {
+    let sum = 0;
+    for (const c of body) {
+        if (c === "move") {
+            sum += 50;
+        }
+        else if (c === "work") {
+            sum += 100;
+        }
+        else if (c === "carry") {
+            sum += 50;
+        }
+        else if (c === "attack") {
+            sum += 80;
+        }
+        else if (c === "ranged_attack") {
+            sum += 150;
+        }
+        else if (c === "heal") {
+            sum += 250;
+        }
+        else if (c === "claim") {
+            sum += 600;
+        }
+        else if (c === "tough") {
+            sum += 10;
+        }
+    }
+    return sum;
+});
 
 /**
  * 在指定的房间生成指定数量的定制 Creep
@@ -15688,7 +15730,8 @@ function create_creep_by_room(room, cnt, body, name, opts) {
             break;
         }
         const spawn_status = spawn.spawning;
-        if (spawn_status === null) {
+        // 如果没有在孵化其他 Creep 并且能量足够 , 那么孵化当前 Creep .
+        if (spawn_status === null && spawn.store.energy >= cacu_body_cost(body)) {
             const status_code = spawn.spawnCreep(body, name, opts);
             if (status_code == OK) {
                 --cnt;
@@ -15716,12 +15759,24 @@ function run() {
             console.log("Clearing non-existing creep memory:", name);
         }
     }
+    // // 为还没分配中心 spawn 的房间分配中心 spawn
+    // for (const room_hash in Game.rooms) {
+    //     const room = Game.rooms[room_hash];
+    //     if (room.memory.main_spawn === undefined) {
+    //         room.memory.main_spawn = room.find(FIND_MY_SPAWNS)[0].name;
+    //     }
+    // }
+    // // 对每个房间执行建筑进程
+    // for (const room_hash in Game.rooms) {
+    //     build_processor(Game.rooms[room_hash]);
+    // }
+    // gcl 过低时只考虑最基础的 Creep
     if (Game.gcl.level <= 2) {
-        // gcl 过低时只考虑最基础的 Creep
         for (const room_hash in Game.rooms) {
             create_basic(Game.rooms[room_hash]);
         }
     }
+    // 运行 basic creep
     for (const creep_hash in Game.creeps) {
         const creep = Game.creeps[creep_hash];
         if (creep.memory.role === CREEP_ROLE_BASIC) {

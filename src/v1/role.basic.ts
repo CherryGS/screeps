@@ -49,7 +49,7 @@ export function run_basic(creep: Creep) {
     // 在运输状态时运输能量到 Extension / Spawn
     if (creep.memory.status === CREEP_STATUS_CARRY) {
         if (creep.memory.target === undefined) {
-            creep.memory.target = creep.room.find(
+            const target = creep.room.find(
                 FIND_MY_STRUCTURES,
                 {
                     filter: (structure) => {
@@ -57,11 +57,15 @@ export function run_basic(creep: Creep) {
                             structure.store.getFreeCapacity(RESOURCE_ENERGY) > 0;
                     }
                 }
-            )[0].id;
+            )[0];
             // 如果还是 undefined 则说明全满 , 此时升级控制器
-            if (creep.memory.target === undefined) { creep.memory.target = creep.room.controller.id; }
+            if (target === undefined) { creep.memory.target = creep.room.controller.id; }
+            else { creep.memory.target = target.id; }
         }
         const target: StructureSpawn | StructureExtension | StructureController = Game.getObjectById(creep.memory.target);
-        if (creep.transfer(target, RESOURCE_ENERGY) === ERR_NOT_IN_RANGE) { creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } }); }
+        const status_code = creep.transfer(target, RESOURCE_ENERGY);
+        if (status_code === ERR_NOT_IN_RANGE) { creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } }); }
+        // 有可能 transfer 的目标刚刚没满现在满了 , 那么删除它
+        else if (status_code === ERR_FULL) { delete creep.memory.target; }
     }
 }

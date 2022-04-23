@@ -1,16 +1,16 @@
-import clear from 'rollup-plugin-clear'
-import screeps from 'rollup-plugin-screeps'
-import copy from 'rollup-plugin-copy'
-import typescript from 'rollup-plugin-typescript2'
-import resolve from '@rollup/plugin-node-resolve'
-import commonjs from '@rollup/plugin-commonjs'
+import clear from "rollup-plugin-clear";
+import screeps from "rollup-plugin-screeps";
+import copy from "rollup-plugin-copy";
+import typescript from "rollup-plugin-typescript2";
+import resolve from "@rollup/plugin-node-resolve";
+import commonjs from "@rollup/plugin-commonjs";
 
-let config
+let config;
 // 根据指定的目标获取对应的配置项
-if (!process.env.DEST) console.log("未指定目标, 代码将被编译但不会上传")
+if (!process.env.DEST) console.log("未指定目标, 代码将被编译但不会上传");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 else if (!(config = require("./.secret.json")[process.env.DEST])) {
-    throw new Error("无效目标，请检查 secret.json 中是否包含对应配置")
+    throw new Error("无效目标，请检查 secret.json 中是否包含对应配置");
 }
 
 // 根据指定的配置决定是上传还是复制到文件夹
@@ -19,27 +19,27 @@ const pluginDeploy = config && config.copyPath ?
     copy({
         targets: [
             {
-                src: 'dist/main.ts',
+                src: "dist/main.ts",
                 dest: config.copyPath
             },
             {
-                src: 'dist/main.js.map',
+                src: "dist/main.js.map",
                 dest: config.copyPath,
-                rename: name => name + '.map.js',
+                rename: name => name + ".map.js",
                 transform: contents => `module.exports = ${contents.toString()};`
             }
         ],
-        hook: 'writeBundle',
+        hook: "writeBundle",
         verbose: true
     }) :
     // 更新 .map 到 .map.js 并上传
-    screeps({ config, dryRun: !config })
+    screeps({ config, dryRun: !config });
 
 export default {
-    input: 'src/main.ts',
+    input: "src/main.ts",
     output: {
-        file: 'dist/main.js',
-        format: 'cjs',
+        file: "dist/main.js",
+        format: "cjs",
         sourcemap: true
     },
     plugins: [

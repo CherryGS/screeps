@@ -15594,7 +15594,9 @@ var lodash = {exports: {}};
 function lookAtAreaDo(left_x, right_x, top_y, bottom_y, _do) {
     for (let i = left_x; i <= right_x; ++i) {
         for (let j = top_y; j <= bottom_y; ++j) {
-            _do(i, j);
+            if (_do(i, j) === true) {
+                return;
+            }
         }
     }
 }
@@ -15771,14 +15773,16 @@ function own_source(id) {
 }
 /**
  * 找到距离给定点最近且未满的矿
+ * 如果 lim 为 true , 则限制条件变为未被上锁的矿
  * @param pos
+ * @param lim
  * @returns
  */
-function get_source(pos) {
+function get_source(pos, lim = true) {
     // 将 Source 按距离排序
     const sources = lodash.exports.sortBy(Game.rooms[pos.roomName].find(FIND_SOURCES, {
         filter: (source) => {
-            return source.room.memory.sources[source.id].nn > 0
+            return (source.room.memory.sources[source.id].nn > 0 || lim)
                 && source.room.memory.sources[source.id].reserved == 0;
         }
     }), (source) => { return eudis(source.pos, pos); });
@@ -16337,6 +16341,39 @@ function del_creep(name) {
     delete Memory.creeps[name];
 }
 
+function run_harvester(creep) {
+    if (creep.memory.source === undefined) {
+        const id = get_source(creep.pos, false);
+        creep.memory.source = id;
+    }
+    const id = creep.memory.source;
+    if (id === undefined) {
+        return;
+    }
+    const source = Game.getObjectById(id);
+    if (creep.memory.target === undefined) {
+        const room = source.room;
+        lookAtAreaDo(source.pos.x - 1, source.pos.x + 1, source.pos.y - 1, source.pos.y + 1, (x, y) => {
+            if (x === source.pos.x && y === source.pos.y) {
+                return false;
+            }
+            for (const c of room.lookForAt(LOOK_STRUCTURES, x, y)) {
+                if (c.structureType == STRUCTURE_CONTAINER) {
+                    creep.memory.target = c.id;
+                    return true;
+                }
+            }
+        });
+    }
+    const target = Game.getObjectById(creep.memory.target);
+    if (creep.pos != target.pos) {
+        creep.moveTo(target);
+    }
+    else {
+        creep.harvest(source);
+    }
+}
+
 function run() {
     // 初始化
     // init_change();
@@ -16378,11 +16415,14 @@ function run() {
         create_harvester(Game.rooms[room_hash]);
         create_basic(Game.rooms[room_hash]);
     }
-    // 运行 basic creep
+    // 运行 creep
     for (const creep_hash in Game.creeps) {
         const creep = Game.creeps[creep_hash];
         if (creep.memory.role === CREEP_ROLE_BASIC) {
             run_basic(creep);
+        }
+        else if (creep.memory.role === CREEP_ROLE_HARESTER) {
+            run_harvester(creep);
         }
     }
 }

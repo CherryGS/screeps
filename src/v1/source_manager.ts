@@ -57,17 +57,19 @@ function own_source(id: string) {
 
 /**
  * 找到距离给定点最近且未满的矿
+ * 如果 lim 为 true , 则限制条件变为未被上锁的矿
  * @param pos 
+ * @param lim
  * @returns 
  */
-function get_source(pos: RoomPosition) {
+export function get_source(pos: RoomPosition, lim = true) {
     // 将 Source 按距离排序
     const sources = sortBy(
         Game.rooms[pos.roomName].find(
             FIND_SOURCES,
             {
                 filter: (source) => {
-                    return source.room.memory.sources[source.id].nn > 0
+                    return (source.room.memory.sources[source.id].nn > 0 || lim)
                         && source.room.memory.sources[source.id].reserved == 0;
                 }
             }

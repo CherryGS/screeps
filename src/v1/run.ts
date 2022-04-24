@@ -1,11 +1,12 @@
 import { run_basic } from "./role.basic";
-import { CREEP_ROLE_BASIC } from "./const";
+import { CREEP_ROLE_BASIC, CREEP_ROLE_HARESTER } from "./const";
 import { create_basic, create_harvester } from "./create_screep";
 import { build_processor } from "./build";
 import { draw_cost_matrix } from "@/modules/utils";
 import { flag_command } from "./flag_command";
 import { del_creep } from "./delete";
 import { run as run_source } from "./source_manager";
+import { run_harvester } from "./role.harvester";
 
 export function run() {
     // 初始化
@@ -56,11 +57,14 @@ export function run() {
         create_basic(Game.rooms[room_hash]);
     }
 
-    // 运行 basic creep
+    // 运行 creep
     for (const creep_hash in Game.creeps) {
         const creep = Game.creeps[creep_hash];
         if (creep.memory.role === CREEP_ROLE_BASIC) {
             run_basic(creep);
+        }
+        else if (creep.memory.role === CREEP_ROLE_HARESTER) {
+            run_harvester(creep);
         }
     }
 }

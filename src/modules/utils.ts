@@ -9,7 +9,7 @@ export function lookAtAreaDo(
 ) {
     for (let i = left_x; i <= right_x; ++i) {
         for (let j = top_y; j <= bottom_y; ++j) {
-            _do(i, j);
+            if (_do(i, j) === true) { return; }
         }
     }
 }

@@ -3248,24 +3248,6 @@ const errorMapper = function (next) {
     }
 };
 
-const CREEP_ROLE_BASIC = "Basic";
-const CREEP_STATUS_HARVEST = "harvesting";
-const CREEP_STATUS_BUILD = "building";
-const CREEP_STATUS_CARRY = "carrying";
-/**
- * 地图中草地的消耗
- */
-const MAP_COST_TERRIAN_GRASS = 4;
-/**
- * 地图中沼泽的消耗
- */
-const MAP_COST_TERRIAN_SWAMP = 10;
-/**
- * 地图中自然墙壁(或其他未定义的不可行走的物体)的消耗
- */
-const MAP_COST_TERRIAN_BLOCK = 255;
-const MAP_COST_STRUCTURE_SPAWN = 256;
-
 var lodash = {exports: {}};
 
 /**
@@ -15609,6 +15591,13 @@ var lodash = {exports: {}};
 }.call(commonjsGlobal));
 }(lodash, lodash.exports));
 
+function lookAtAreaDo(top, bottom, left, right, _do) {
+    for (let i = top; i <= bottom; ++i) {
+        for (let j = left; j <= right; ++j) {
+            _do(i, j);
+        }
+    }
+}
 /**
  * 通过 body 计算该 Creep 的生成花费
  */
@@ -15642,22 +15631,65 @@ const cacu_body_cost = lodash.exports.memoize((body) => {
     }
     return sum;
 });
-function print_cost_matrix(cost, room) {
+/**
+ * 根据房间矩阵把权值会绘制到 UI 上
+ * @param cost
+ * @param room
+ */
+function draw_cost_matrix(cost, room) {
     for (let i = 0; i < 50; ++i) {
         for (let j = 0; j < 50; ++j) {
             const r = cost.get(i, j);
-            if (r < 255) {
-                room.visual.text(String(r), i, j);
-            }
-            else if (r === MAP_COST_STRUCTURE_SPAWN) {
-                room.visual.text("S", i, j, { font: 0.1 });
-            }
+            room.visual.text(String(r), i, j, { font: 0.3 });
         }
     }
 }
 function eudis(pos1, pos2) {
     return Math.abs(pos1.x - pos2.x) + Math.abs(pos1.y - pos2.y);
 }
+function movalbe(s) {
+    return s === STRUCTURE_RAMPART || s === STRUCTURE_ROAD || s === STRUCTURE_CONTAINER;
+}
+lodash.exports.memoize((pos) => {
+    const room = Game.rooms[pos.roomName];
+    const res = room.lookAt(pos);
+    for (const c of res) {
+        if (c.terrain == "wall") {
+            return false;
+        }
+    }
+});
+
+const CREEP_ROLE_BASIC = "Basic";
+const CREEP_STATUS_HARVEST = "harvesting";
+const CREEP_STATUS_BUILD = "building";
+const CREEP_STATUS_CARRY = "carrying";
+/**
+ * 地图中草地的消耗
+ */
+const MAP_COST_TERRIAN_GRASS = 4;
+/**
+ * 地图中沼泽的消耗
+ */
+const MAP_COST_TERRIAN_SWAMP = 10;
+/**
+ * 地图中自然墙壁的消耗
+ */
+const MAP_COST_TERRIAN_BLOCK = 255;
+/**
+ * 这里特指的是无法经过的建筑 , road / rampact 不在其中
+ */
+const MAP_COST_STRUCTURE = 255;
+const EXTENSION_LEVEL_INFO = {
+    1: [0, 0],
+    2: [5, 50],
+    3: [10, 50],
+    4: [20, 50],
+    5: [30, 50],
+    6: [40, 50],
+    7: [50, 100],
+    8: [60, 200]
+};
 
 /**
  * 切换 creep 状态并初始化一些变量
@@ -15723,8 +15755,8 @@ function run_basic(creep) {
     }
     // 在建造状态时开始建造
     if (creep.memory.status === CREEP_STATUS_BUILD) {
-        // 如果该建筑工地已经完成则删除
         const t = Game.getObjectById(creep.memory.target);
+        // 如果该建筑工地已经完成则删除
         if (t === null) {
             delete creep.memory.target;
         }
@@ -15735,6 +15767,7 @@ function run_basic(creep) {
                 creep.memory.target = res[0].id;
             }
         }
+        // 还有就去建
         if (creep.memory.target !== undefined) {
             const construction = Game.getObjectById(creep.memory.target);
             if (creep.build(construction) === ERR_NOT_IN_RANGE) {
@@ -15803,38 +15836,127 @@ function create_creep_by_room(room, cnt, body, name, opts) {
 function create_basic(room) {
     // 确定要生成的数量
     const cnt = 4 - lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }));
-    create_creep_by_room(room, cnt, ["work", "carry", "move"], CREEP_ROLE_BASIC + Date.now(), { memory: { role: CREEP_ROLE_BASIC }, });
+    create_creep_by_room(room, cnt, ["work", "carry", "carry", "move", "move"], CREEP_ROLE_BASIC + Date.now(), { memory: { role: CREEP_ROLE_BASIC }, });
 }
 
-/**
- * 根据地形和已知道路格式化 CostMatrix , 方便使用
- * @param room
- * @param matrix
- */
-function init_matrix(room, matrix) {
-    const terrain = room.getTerrain();
-    for (let i = 0; i < 50; ++i) {
-        for (let j = 0; j < 50; ++j) {
-            if (matrix.get(i, j) === 1) {
-                // 此处是道路 , 不用走
-                continue;
+// 模块中的 CostMatrix 缓存 , 要保证及时更新
+const cost_matrix_cache = new Map();
+const cost_cache = {
+    get(roomName) {
+        if (cost_matrix_cache.get(roomName) === undefined) {
+            cost_matrix_cache.set(roomName, PathFinder.CostMatrix.deserialize(Game.rooms[roomName].memory.map));
+        }
+        return cost_matrix_cache.get(roomName);
+    },
+    set(key, value) {
+        return cost_matrix_cache.set(key, value);
+    }
+};
+function map_search(f, t, r = 2) {
+    return PathFinder.search(f, { pos: t, range: r }, {
+        roomCallback: (room_hash) => {
+            // 没有定义的 room 直接返回 false
+            const room = Game.rooms[room_hash];
+            if (room === undefined) {
+                return false;
             }
-            if (terrain.get(i, j) === TERRAIN_MASK_WALL) {
-                // 墙视为不可通过
-                matrix.set(i, j, MAP_COST_TERRIAN_BLOCK);
+            // 如果没有地图就初始化一下
+            if (room.memory.map === undefined) {
+                init_matrix.run(room);
             }
-            else if (terrain.get(i, j) === TERRAIN_MASK_SWAMP) {
-                // 沼泽地分配权重 10
-                matrix.set(i, j, MAP_COST_TERRIAN_SWAMP);
-            }
-            else {
-                // 草地分配权重 4
-                matrix.set(i, j, MAP_COST_TERRIAN_GRASS);
+            return PathFinder.CostMatrix.deserialize(room.memory.map);
+        }
+    });
+}
+const init_matrix = {
+    /**
+     * 将不可走的建筑的位置设置对应的代价
+     * @param room
+     */
+    init_by_structure(room) {
+        const tmp = new Array();
+        // 通过建筑物格式化 , 同时忽略可以经过的建筑
+        const res = lodash.exports.filter(room.find(FIND_STRUCTURES), (o) => {
+            return !movalbe(o.structureType);
+        });
+        // 根据建筑类型赋值
+        for (const c of res) {
+            tmp.push({ pos: c.pos, val: MAP_COST_STRUCTURE });
+        }
+        set_cost_matrix(tmp);
+    },
+    /**
+     * 只有为 0 的地方会被分配
+     * @param room
+     */
+    init_by_terrain(room) {
+        const matrix = cost_cache.get(room.name);
+        const tmp = new Array();
+        // 通过地形格式化
+        const terrain = room.getTerrain();
+        for (let i = 0; i < 50; ++i) {
+            for (let j = 0; j < 50; ++j) {
+                if (matrix.get(i, j) !== 0) {
+                    // 此处已被后面分配 , 不用再分配地形
+                    continue;
+                }
+                if (terrain.get(i, j) === TERRAIN_MASK_WALL) {
+                    // 自然墙不可通过
+                    tmp.push({
+                        pos: new RoomPosition(i, j, room.name),
+                        val: MAP_COST_TERRIAN_BLOCK
+                    });
+                }
+                else if (terrain.get(i, j) === TERRAIN_MASK_SWAMP) {
+                    // 沼泽地分配权重 10
+                    tmp.push({
+                        pos: new RoomPosition(i, j, room.name),
+                        val: MAP_COST_TERRIAN_SWAMP
+                    });
+                }
+                else {
+                    // 草地分配权重 4
+                    tmp.push({
+                        pos: new RoomPosition(i, j, room.name),
+                        val: MAP_COST_TERRIAN_GRASS
+                    });
+                }
             }
         }
+        set_cost_matrix(tmp);
+    },
+    /**
+     * ! 注意 , 未考虑工地
+     * 根据建筑和地形为地图赋值
+     * @param room
+     */
+    run(room) {
+        this.init_by_structure(room);
+        this.init_by_terrain(room);
+    }
+};
+/**
+ * ! 请不要手动修改 , 否则大概率因为缓存原因而使得修改失效
+ * 用来修改指定房间的 Map
+ * @param k 修改数组
+ */
+function set_cost_matrix(k) {
+    // 存储修改过的房间名
+    const name_set = new Set();
+    for (const c of k) {
+        const pos = c.pos;
+        const val = c.val;
+        const costs = cost_cache.get(pos.roomName);
+        costs.set(pos.x, pos.y, val);
+        name_set.add(pos.roomName);
+        // 更新缓存
+        cost_cache.set(pos.roomName, costs);
+    }
+    // 更新内存
+    for (const name of name_set) {
+        Game.rooms[name].memory.map = cost_matrix_cache.get(name).serialize();
     }
 }
-const cost_matrix_cache = new Map();
 /**
  * ! 高 CPU 消耗
  * 规划一条从起始点到终止点的修建道路的方案 , 基于已知道路
@@ -15842,29 +15964,7 @@ const cost_matrix_cache = new Map();
  * @param t 终止点的对象的 id
  */
 function update_road(f, t) {
-    const res = PathFinder.search(f, { pos: t, range: 2 }, {
-        roomCallback: (room_hash) => {
-            // 没有定义的 room 直接返回 false
-            const room = Game.rooms[room_hash];
-            if (room === undefined) {
-                return false;
-            }
-            // 如果全局有缓存 , 直接使用
-            if (cost_matrix_cache[room_hash] !== undefined) {
-                return cost_matrix_cache[room_hash];
-            }
-            let room_map;
-            if (room.memory.map === undefined) {
-                room_map = new PathFinder.CostMatrix;
-                init_matrix(room, room_map);
-                room.memory.map = room_map.serialize();
-            }
-            else {
-                room_map = PathFinder.CostMatrix.deserialize(room.memory.map);
-            }
-            return room_map;
-        }
-    });
+    const res = map_search(f, t, 2);
     // 将起点加入道路末尾 , 方便计算
     res.path.push(f);
     const tmp = new Map();
@@ -15887,7 +15987,7 @@ function update_road(f, t) {
  * 建立基本的道路系统
  * @param room
  */
-function pre_build(room) {
+function init_road(room) {
     const spawn = Game.spawns[room.memory.main_spawn];
     const terrain = room.getTerrain();
     const all_target = new Array();
@@ -15917,7 +16017,7 @@ function pre_build(room) {
     }
 }
 function build_processor(room) {
-    pre_build(room);
+    init_road(room);
     const costs = PathFinder.CostMatrix.deserialize(room.memory.map);
     // 建路
     for (let i = 0; i < 50; ++i) {
@@ -15926,24 +16026,129 @@ function build_processor(room) {
                 continue;
             }
             // 如果一个地块有建筑或建筑工地就不尝试放置道路
-            if (lodash.exports.size(room.lookForAt(LOOK_STRUCTURES, i, j)) == 0 && lodash.exports.size(room.lookForAt(LOOK_CONSTRUCTION_SITES, i, j)) == 0) {
+            if (lodash.exports.size(room.lookForAt(LOOK_STRUCTURES, i, j)) + lodash.exports.size(room.lookForAt(LOOK_CONSTRUCTION_SITES, i, j)) == 0) {
                 const res_code = room.createConstructionSite(i, j, STRUCTURE_ROAD);
                 if (res_code !== OK) {
-                    console.log(`ERROR ${res_code} CAUSED WHEN CREATE CONSTRUCTIONSITE-WALL`);
+                    console.log(`ERROR ${res_code} CAUSED WHEN CREATE CONSTRUCTIONSITE-ROAD`);
                 }
             }
         }
     }
+    // 在道路旁建 extension , 保证两个 extension 不相邻
+    const sources = room.find(FIND_SOURCES);
+    const target = sources[Game.time % sources.length];
+    const spawn = Game.spawns[room.memory.main_spawn];
+    const res = map_search(target.pos, spawn.pos);
+    let cnt = EXTENSION_LEVEL_INFO[room.controller.level][0] -
+        lodash.exports.size(room.find(FIND_MY_STRUCTURES, { filter: { structureType: STRUCTURE_EXTENSION } })) -
+        lodash.exports.size(room.find(FIND_MY_CONSTRUCTION_SITES, { filter: { structureType: STRUCTURE_EXTENSION } }));
+    if (cnt > 0) {
+        cnt = 1;
+    }
+    for (const c of res.path) {
+        const i = c.x;
+        const j = c.y;
+        if (cnt <= 0) {
+            break;
+        }
+        if (costs.get(i, j) == 1) {
+            lookAtAreaDo(i - 1, i + 1, j - 1, j + 1, (x, y) => {
+                if (cnt <= 0) {
+                    return;
+                }
+                if (x == i && y == j) {
+                    return;
+                }
+                if (costs.get(x, y) == 1
+                    || costs.get(x, y) == MAP_COST_STRUCTURE
+                    || costs.get(x, y) == MAP_COST_TERRIAN_BLOCK) {
+                    return;
+                }
+                if (room.lookForAt(LOOK_STRUCTURES, x, y).length != 0
+                    || room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y).length != 0) {
+                    return;
+                }
+                let num = 0;
+                lookAtAreaDo(x - 1, x + 1, y - 1, y + 1, (a, b) => {
+                    if (Math.abs(x + y - a - b) > 1) {
+                        return;
+                    }
+                    if (x == a && y == b) {
+                        return;
+                    }
+                    // 这个点是否有无法走过的建筑
+                    if (lodash.exports.filter(room.lookForAt(LOOK_STRUCTURES, a, b), (o) => {
+                        return !movalbe(o.structureType);
+                    }).length) {
+                        num = num + 1;
+                    }
+                    // 这个点是否有无法走过的工地
+                    if (lodash.exports.filter(room.lookForAt(LOOK_CONSTRUCTION_SITES, a, b), (o) => {
+                        return !movalbe(o.structureType);
+                    }).length) {
+                        num = num + 1;
+                    }
+                });
+                if (num === 0) {
+                    const status_code = room.createConstructionSite(x, y, STRUCTURE_EXTENSION);
+                    if (status_code !== OK) {
+                        console.log(`buildprocess 中出现错误 , 发生在尝试建造 extension 时 , 错误原因 ${status_code} , 位置 (${x},${y})`);
+                    }
+                    else {
+                        console.log("创建 建筑工地-Extension 成功");
+                        --cnt;
+                    }
+                }
+            });
+        }
+    }
 }
 
+const flag_command = {
+    // 清除图中所用工地
+    f1: {
+        run(room) {
+            const f = room.lookForAt(LOOK_FLAGS, 0, 0);
+            if (f.length === 0) {
+                const res = room.find(FIND_MY_CONSTRUCTION_SITES);
+                for (const c of res) {
+                    c.remove();
+                }
+                this.init(room);
+                console.log("旗语 : '清除所有工地'已触发");
+            }
+        },
+        init(room) {
+            room.createFlag(0, 0, "remove all constructionsites");
+        }
+    },
+    init(room) {
+        this.f1.init(room);
+    },
+    run(room) {
+        this.f1.run(room);
+    }
+};
+
 function run() {
+    // 初始化
+    // init_change();
+    // 初始化旗语
+    for (const room_hash in Game.rooms) {
+        flag_command.run(Game.rooms[room_hash]);
+    }
     // 清理已死亡 creeps 内存
     for (const name in Memory.creeps) {
         if (!Game.creeps[name]) {
+            // del_creep(name);
             delete Memory.creeps[name];
             console.log("Clearing non-existing creep memory:", name);
         }
     }
+    //初始化房间地图
+    // for (const room_hash in Game.rooms) {
+    //     init_matrix.run(Game.rooms[room_hash]);
+    // }
     // 为还没分配中心 spawn 的房间分配中心 spawn
     for (const room_hash in Game.rooms) {
         const room = Game.rooms[room_hash];
@@ -15955,13 +16160,10 @@ function run() {
     for (const room_hash in Game.rooms) {
         build_processor(Game.rooms[room_hash]);
         const cost = PathFinder.CostMatrix.deserialize(Game.rooms[room_hash].memory.map);
-        print_cost_matrix(cost, Game.rooms[room_hash]);
+        draw_cost_matrix(cost, Game.rooms[room_hash]);
     }
-    // gcl 过低时只考虑最基础的 Creep
-    if (Game.gcl.level <= 2) {
-        for (const room_hash in Game.rooms) {
-            create_basic(Game.rooms[room_hash]);
-        }
+    for (const room_hash in Game.rooms) {
+        create_basic(Game.rooms[room_hash]);
     }
     // 运行 basic creep
     for (const creep_hash in Game.creeps) {

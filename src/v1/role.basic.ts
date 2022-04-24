@@ -62,14 +62,15 @@ export function run_basic(creep: Creep) {
 
     // 在建造状态时开始建造
     if (creep.memory.status === CREEP_STATUS_BUILD) {
+        const t: ConstructionSite = Game.getObjectById(creep.memory.target);
         // 如果该建筑工地已经完成则删除
-        const t = Game.getObjectById(creep.memory.target);
         if (t === null) { delete creep.memory.target; }
         // 寻找建筑工地
         if (creep.memory.target === undefined) {
             const res = sortBy(creep.room.find(FIND_CONSTRUCTION_SITES), (o) => { return eudis(o.pos, creep.pos); });
             if (res.length) { creep.memory.target = res[0].id; }
         }
+        // 还有就去建
         if (creep.memory.target !== undefined) {
             const construction: ConstructionSite = Game.getObjectById(creep.memory.target);
             if (creep.build(construction) === ERR_NOT_IN_RANGE) { creep.moveTo(construction, { visualizePathStyle: { stroke: "#ffffff" } }); }

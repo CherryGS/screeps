@@ -40,7 +40,7 @@ export function create_basic(room: Room) {
         )
     );
     create_creep_by_room(room, cnt,
-        ["work", "carry", "move"],
+        ["work", "carry", "carry", "move", "move"],
         CREEP_ROLE_BASIC + Date.now(),
         { memory: { role: CREEP_ROLE_BASIC }, }
     );

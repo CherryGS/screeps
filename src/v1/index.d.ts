@@ -1,3 +1,20 @@
+interface SourceMemory {
+    /**
+     * 人员容量
+     */
+    pc?: number;
+
+    /**
+     * 当前已经分配的人数
+     */
+    nn?: number;
+
+    /**
+     * 是否被预定为挖运分离的矿
+     */
+    reserved?: boolean;
+}
+
 interface CreepMemory {
     /**
      * Creep 的角色
@@ -30,4 +47,13 @@ interface RoomMemory {
      * 该房间中心 spawn 的名字
      */
     main_spawn?: string;
+
+    /**
+     * 存储该房间的 Source 和其相关信息
+     */
+    sources?: { [sourceId: string]: SourceMemory };
+}
+
+interface Creep {
+    _harvest(target: Source | Mineral | Deposit): CreepActionReturnCode | ERR_NOT_FOUND | ERR_NOT_ENOUGH_RESOURCES;
 }

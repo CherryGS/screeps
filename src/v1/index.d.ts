@@ -10,9 +10,12 @@ interface SourceMemory {
     nn?: number;
 
     /**
-     * 是否被预定为挖运分离的矿
+     * 是否被预定为挖运分离的矿 , 有三个阶段
+     * 0 : 当前无人预订
+     * 1 : 持续中 , 即将取消预订
+     * 2 : 刚被预定过
      */
-    reserved?: boolean;
+    reserved?: number;
 }
 
 interface CreepMemory {

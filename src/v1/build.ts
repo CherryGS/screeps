@@ -1,4 +1,4 @@
-import { lookAtAreaDo, movalbe } from "@/modules/utils";
+import { is_cleaning, lookAtAreaDo, movalbe, passable, remove_loc } from "@/modules/utils";
 import { filter, size } from "lodash";
 import { EXTENSION_LEVEL_INFO, MAP_COST_STRUCTURE, MAP_COST_TERRIAN_BLOCK } from "./const";
 import { map_search, update_road } from "./map";
@@ -38,6 +38,8 @@ function init_road(room: Room) {
     }
 }
 export function build_processor(room: Room) {
+    const sources = room.find(FIND_SOURCES);
+
     init_road(room);
     const costs = PathFinder.CostMatrix.deserialize(room.memory.map);
     // 建路
@@ -47,13 +49,53 @@ export function build_processor(room: Room) {
             // 如果一个地块有建筑或建筑工地就不尝试放置道路
             if (size(room.lookForAt(LOOK_STRUCTURES, i, j)) + size(room.lookForAt(LOOK_CONSTRUCTION_SITES, i, j)) == 0) {
                 const res_code = room.createConstructionSite(i, j, STRUCTURE_ROAD);
-                if (res_code !== OK) { console.log(`ERROR ${res_code} CAUSED WHEN CREATE CONSTRUCTIONSITE-ROAD`); }
+                if (res_code !== OK) {
+                    console.log(`ERROR ${res_code} CAUSED WHEN CREATE CONSTRUCTIONSITE-ROAD`);
+                }
+            }
+        }
+    }
+
+    // 预定要用来造 Container 的位置
+    for (const c of sources) {
+        let num = 0;
+        // 如果 Source 四周没有 Container , 那么在它四周找一个和道路相邻的位置造 Container
+        lookAtAreaDo(c.pos.x - 1, c.pos.x + 1, c.pos.y - 1, c.pos.y + 1, (x, y) => {
+            if (num) { return; }
+            for (const r of c.room.lookForAt(LOOK_STRUCTURES, x, y)) {
+                if (r.structureType === STRUCTURE_CONTAINER) {
+                    ++num;
+                    return;
+                }
+            }
+            for (const r of c.room.lookForAt(LOOK_CONSTRUCTION_SITES, x, y)) {
+                if (r.structureType === STRUCTURE_CONTAINER) {
+                    ++num;
+                    return;
+                }
+            }
+        });
+        // 这里可以找位置了
+        if (num == 0) {
+            let pos = undefined;
+            lookAtAreaDo(c.pos.x - 1, c.pos.x + 1, c.pos.y - 1, c.pos.y + 1, (x, y) => {
+                if (num) { return; }
+                if (room.getTerrain().get(x, y) == TERRAIN_MASK_WALL) { return; }
+                pos = new RoomPosition(x, y, room.name);
+                num = 1;
+            });
+            remove_loc(pos);
+            const status_code = room.createConstructionSite(pos.x, pos.y, STRUCTURE_CONTAINER);
+            if (status_code != OK) {
+                console.log(`ERROR ${status_code} CAUSED WHEN CREATE CONSTRUCTIONSITE-CONTAINER`);
+            }
+            else {
+                console.log("创建 建筑工地-CONTAINER 成功");
             }
         }
     }
 
     // 在道路旁建 extension , 保证两个 extension 不相邻
-    const sources = room.find(FIND_SOURCES);
     const target = sources[Game.time % sources.length];
     const spawn = Game.spawns[room.memory.main_spawn];
     const res = map_search(target.pos, spawn.pos);
@@ -103,4 +145,6 @@ export function build_processor(room: Room) {
             });
         }
     }
+
+
 }

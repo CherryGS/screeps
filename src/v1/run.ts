@@ -1,10 +1,11 @@
 import { run_basic } from "./role.basic";
 import { CREEP_ROLE_BASIC } from "./const";
-import { create_basic } from "./create_screep";
+import { create_basic, create_harvester } from "./create_screep";
 import { build_processor } from "./build";
 import { draw_cost_matrix } from "@/modules/utils";
-import { init_matrix } from "./map";
 import { flag_command } from "./flag_command";
+import { del_creep } from "./delete";
+import { run as run_source } from "./source_manager";
 
 export function run() {
     // 初始化
@@ -18,8 +19,7 @@ export function run() {
     // 清理已死亡 creeps 内存
     for (const name in Memory.creeps) {
         if (!Game.creeps[name]) {
-            // del_creep(name);
-            delete Memory.creeps[name];
+            del_creep(name);
             console.log("Clearing non-existing creep memory:", name);
         }
     }
@@ -28,6 +28,12 @@ export function run() {
     // for (const room_hash in Game.rooms) {
     //     init_matrix.run(Game.rooms[room_hash]);
     // }
+
+    // 初始化房间资源管理
+    for (const room_hash in Game.rooms) {
+        const room = Game.rooms[room_hash];
+        run_source(room);
+    }
 
     // 为还没分配中心 spawn 的房间分配中心 spawn
     for (const room_hash in Game.rooms) {
@@ -44,7 +50,9 @@ export function run() {
         draw_cost_matrix(cost, Game.rooms[room_hash]);
     }
 
+    // 造 Creep
     for (const room_hash in Game.rooms) {
+        create_harvester(Game.rooms[room_hash]);
         create_basic(Game.rooms[room_hash]);
     }
 

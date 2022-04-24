@@ -1,14 +1,14 @@
 import { memoize } from "lodash";
 
 export function lookAtAreaDo(
-    top: number,
-    bottom: number,
-    left: number,
-    right: number,
+    left_x: number,
+    right_x: number,
+    top_y: number,
+    bottom_y: number,
     _do: (x: number, y: number) => unknown,
 ) {
-    for (let i = top; i <= bottom; ++i) {
-        for (let j = left; j <= right; ++j) {
+    for (let i = left_x; i <= right_x; ++i) {
+        for (let j = top_y; j <= bottom_y; ++j) {
             _do(i, j);
         }
     }
@@ -51,10 +51,20 @@ export function eudis(pos1: RoomPosition | { x: number, y: number }, pos2: RoomP
     return Math.abs(pos1.x - pos2.x) + Math.abs(pos1.y - pos2.y);
 }
 
+/**
+ * 判断 Structure 的类型是否是允许 Creep 在上面移动的
+ * @param s 
+ * @returns 
+ */
 export function movalbe(s: string) {
     return s === STRUCTURE_RAMPART || s === STRUCTURE_ROAD || s === STRUCTURE_CONTAINER;
 }
 
+/**
+ * 判断一个点是否可以站到上面
+ * @param pos 
+ * @returns 
+ */
 export const passable = (pos: RoomPosition) => {
     const room = Game.rooms[pos.roomName];
     const res = room.lookAt(pos);
@@ -65,3 +75,29 @@ export const passable = (pos: RoomPosition) => {
     }
     return true;
 };
+
+export function is_cleaning(pos: RoomPosition) {
+    const room = Game.rooms[pos.roomName];
+    return room.lookForAt(LOOK_STRUCTURES, pos.x, pos.y).length == 0
+        && room.lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y).length == 0;
+}
+
+/**
+ * 删除某个点的工地和建筑 , 除了 rampart
+ * @param pos 
+ */
+export function remove_loc(pos: RoomPosition) {
+    const room = Game.rooms[pos.roomName];
+    for (const c of room.lookForAt(LOOK_STRUCTURES, pos.x, pos.y)) {
+        if (c.structureType != STRUCTURE_RAMPART) {
+            console.log(`摧毁了建筑 ${c.structureType} 在 (${pos.x},${pos.y})`);
+            c.destroy();
+        }
+    }
+    for (const c of room.lookForAt(LOOK_CONSTRUCTION_SITES, pos.x, pos.y)) {
+        if (c.structureType != STRUCTURE_RAMPART) {
+            console.log(`取消了工地 ${c.structureType} 在 (${pos.x},${pos.y})`);
+            c.remove();
+        }
+    }
+}

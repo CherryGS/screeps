@@ -15702,6 +15702,7 @@ const CREEP_ROLE_BASIC = "Basic";
 const CREEP_ROLE_HARESTER = "Harvester";
 const CREEP_STATUS_PICKUP = "picking-up";
 const CREEP_STATUS_HARVEST = "harvesting";
+const CREEP_STATUS_REPAIR = "repairing";
 const CREEP_STATUS_BUILD = "building";
 const CREEP_STATUS_CARRY = "carrying";
 /**
@@ -15755,8 +15756,8 @@ function run$1(room) {
         if (room.memory.sources[c.id].pc === undefined) {
             room.memory.sources[c.id].pc = get_source_pc(c);
         }
-        if (room.memory.sources[c.id].nn === undefined) {
-            room.memory.sources[c.id].nn = room.memory.sources[c.id].pc;
+        if (room.memory.sources[c.id].cc === undefined) {
+            room.memory.sources[c.id].cc = room.memory.sources[c.id].pc;
         }
         // 锁计数递降
         if (room.memory.sources[c.id].reserved > 0) {
@@ -15769,7 +15770,10 @@ function run$1(room) {
 }
 function own_source(id) {
     const source = Game.getObjectById(id);
-    --source.room.memory.sources[id].nn;
+    --source.room.memory.sources[id].cc;
+    if (source.room.memory.sources[id].cc < 0) {
+        console.log("Source 分配出现异常!!!");
+    }
 }
 /**
  * 找到距离给定点最近且未满的矿
@@ -15782,7 +15786,7 @@ function get_source(pos, lim = true) {
     // 将 Source 按距离排序
     const sources = lodash.exports.sortBy(Game.rooms[pos.roomName].find(FIND_SOURCES, {
         filter: (source) => {
-            return (source.room.memory.sources[source.id].nn > 0 || lim)
+            return (source.room.memory.sources[source.id].cc > 0 || !lim)
                 && source.room.memory.sources[source.id].reserved == 0;
         }
     }), (source) => { return eudis(source.pos, pos); });
@@ -15802,14 +15806,11 @@ function assign_source(pos) {
 }
 function release_source(memo) {
     const source = Game.getObjectById(memo.source);
-    const num = source.room.memory.sources[source.id].nn;
-    if (num <= 0) {
-        console.log(`Source ${source.id} 已被使用的数量为 0 时却发起了释放`);
+    if (source === null) {
         return;
     }
-    else {
-        source.room.memory.sources[source.id].nn = num - 1;
-    }
+    const num = source.room.memory.sources[source.id].cc;
+    source.room.memory.sources[source.id].cc = num + 1;
 }
 
 /**
@@ -15825,7 +15826,7 @@ function change_creep_status(creep) {
     }
     else if (creep.memory.status === CREEP_STATUS_PICKUP) {
         if (creep.store.getFreeCapacity() <= 0) {
-            creep.memory.status = CREEP_STATUS_CARRY;
+            creep.memory.status = CREEP_STATUS_REPAIR;
             flag = true;
         }
         else if (creep.memory.target === undefined) {
@@ -15834,8 +15835,20 @@ function change_creep_status(creep) {
         }
     }
     else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
-        creep.memory.status = CREEP_STATUS_BUILD;
+        creep.memory.status = CREEP_STATUS_REPAIR;
         flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_REPAIR) {
+        // 如果能量没空 , 则去建筑
+        if (creep.store.getUsedCapacity() != 0 && creep.memory.target === undefined) {
+            creep.memory.status = CREEP_STATUS_BUILD;
+            flag = true;
+        }
+        else if (creep.store.getUsedCapacity() == 0) {
+            // 否则如果能量空了 , 进入获取能量的阶段
+            creep.memory.status = CREEP_STATUS_PICKUP;
+            flag = true;
+        }
     }
     else if (creep.memory.status === CREEP_STATUS_BUILD && (creep.memory.target === undefined || creep.store.getUsedCapacity() <= 0)) {
         creep.memory.status = CREEP_STATUS_CARRY;
@@ -15851,7 +15864,7 @@ function change_creep_status(creep) {
     }
 }
 /**
- * 自主 捡掉落能量 / 采能量 / 建造建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
+ * 自主 捡掉落能量 / 采能量 / 建造(修)建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
  * @param creep
  */
 function run_basic(creep) {
@@ -15878,12 +15891,13 @@ function run_basic(creep) {
     if (creep.memory.status === CREEP_STATUS_PICKUP) {
         const t = creep.memory.target;
         if (t === undefined || Game.getObjectById(t) === null) {
+            delete creep.memory.target;
             const res = creep.room.find(FIND_DROPPED_RESOURCES);
             if (res.length) {
                 creep.memory.target = res[0].id;
             }
         }
-        if (t === undefined || Game.getObjectById(t) === null) {
+        if (t === undefined) {
             return;
         }
         const target = Game.getObjectById(t);
@@ -15894,12 +15908,39 @@ function run_basic(creep) {
     }
     // 在采集状态时采集能量
     if (creep.memory.status === CREEP_STATUS_HARVEST) {
+        let source = Game.getObjectById(creep.memory.source);
+        if (source === null || source.room.memory.sources[source.id].reserved > 0) {
+            delete creep.memory.source;
+        }
         if (creep.memory.source === undefined) {
             creep.memory.source = assign_source(creep.pos);
         }
-        const source = Game.getObjectById(creep.memory.source);
+        source = Game.getObjectById(creep.memory.source);
         if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
             creep.moveTo(source, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+    }
+    // 在修复状态时修建筑 / 除了墙
+    if (creep.memory.status === CREEP_STATUS_REPAIR) {
+        let target = Game.getObjectById(creep.memory.target);
+        if (target === null || target.hits === target.hitsMax) {
+            delete creep.memory.target;
+        }
+        if (creep.memory.target === undefined) {
+            const res = creep.room.find(FIND_STRUCTURES, {
+                filter: (o) => {
+                    return o.hits != o.hitsMax
+                        && o.structureType != STRUCTURE_WALL
+                        && o.structureType != STRUCTURE_RAMPART;
+                }
+            });
+            if (res.length) {
+                creep.memory.target = res[lodash.exports.random(0, 1000, false) % res.length].id;
+            }
+        }
+        target = Game.getObjectById(creep.memory.target);
+        if (creep.repair(target) === ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
         }
     }
     // 在建造状态时开始建造
@@ -15963,7 +16004,7 @@ function run_basic(creep) {
  */
 function create_creep_by_room(room, cnt, body, name, opts) {
     for (const spawn of room.find(FIND_MY_SPAWNS)) {
-        if (cacu_body_cost(body) < room.energyAvailable) {
+        if (cacu_body_cost(body) > room.energyAvailable) {
             return;
         }
         if (cnt <= 0) {
@@ -15979,14 +16020,14 @@ function create_creep_by_room(room, cnt, body, name, opts) {
             }
             else {
                 // 如果生成 Creep 失败则报错
-                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
+                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING ${String(body)}. `);
             }
         }
     }
 }
 function create_basic(room) {
     // 确定要生成的数量
-    const cnt = 4 - lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }));
+    const cnt = 5 - lodash.exports.size(room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }));
     create_creep_by_room(room, cnt, ["work", "carry", "carry", "move", "move"], CREEP_ROLE_BASIC, { memory: { role: CREEP_ROLE_BASIC }, });
 }
 function create_harvester(room) {

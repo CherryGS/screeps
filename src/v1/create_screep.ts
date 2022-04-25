@@ -12,7 +12,7 @@ import { CREEP_ROLE_BASIC, CREEP_ROLE_HARESTER } from "./const";
  */
 function create_creep_by_room(room: Room, cnt: number, body: BodyPartConstant[], name: string, opts?: SpawnOptions) {
     for (const spawn of room.find(FIND_MY_SPAWNS)) {
-        if (cacu_body_cost(body) < room.energyAvailable) { return; }
+        if (cacu_body_cost(body) > room.energyAvailable) { return; }
         if (cnt <= 0) { break; }
         const spawn_status = spawn.spawning;
         // 如果没有在孵化其他 Creep 并且能量足够 , 那么孵化当前 Creep .
@@ -23,7 +23,7 @@ function create_creep_by_room(room: Room, cnt: number, body: BodyPartConstant[],
                 --cnt;
             } else {
                 // 如果生成 Creep 失败则报错
-                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING. `);
+                console.log(`ERROR ${status_code} CAUSED WHEN ${spawn.name} SPAWNING ${String(body)}. `);
             }
         }
     }
@@ -31,7 +31,7 @@ function create_creep_by_room(room: Room, cnt: number, body: BodyPartConstant[],
 
 export function create_basic(room: Room) {
     // 确定要生成的数量
-    const cnt = 4 - size(
+    const cnt = 5 - size(
         room.find(
             FIND_MY_CREEPS,
             { filter: { memory: { role: CREEP_ROLE_BASIC } }, }

@@ -5,9 +5,9 @@ interface SourceMemory {
     pc?: number;
 
     /**
-     * 当前已经分配的人数
+     * 当前还有多少人可用
      */
-    nn?: number;
+    cc?: number;
 
     /**
      * 是否被预定为挖运分离的矿 , 有三个阶段

@@ -1,6 +1,6 @@
 import { eudis } from "@/modules/utils";
-import { sortBy } from "lodash";
-import { CREEP_STATUS_BUILD, CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST, CREEP_STATUS_PICKUP } from "./const";
+import { random, sortBy } from "lodash";
+import { CREEP_STATUS_BUILD, CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST, CREEP_STATUS_PICKUP, CREEP_STATUS_REPAIR } from "./const";
 import { assign_source } from "./source_manager";
 
 /**
@@ -16,7 +16,7 @@ function change_creep_status(creep: Creep) {
     }
     else if (creep.memory.status === CREEP_STATUS_PICKUP) {
         if (creep.store.getFreeCapacity() <= 0) {
-            creep.memory.status = CREEP_STATUS_CARRY;
+            creep.memory.status = CREEP_STATUS_REPAIR;
             flag = true;
         }
         else if (creep.memory.target === undefined) {
@@ -25,8 +25,20 @@ function change_creep_status(creep: Creep) {
         }
     }
     else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
-        creep.memory.status = CREEP_STATUS_BUILD;
+        creep.memory.status = CREEP_STATUS_REPAIR;
         flag = true;
+    }
+    else if (creep.memory.status === CREEP_STATUS_REPAIR) {
+        // 如果能量没空 , 则去建筑
+        if (creep.store.getUsedCapacity() != 0 && creep.memory.target === undefined) {
+            creep.memory.status = CREEP_STATUS_BUILD;
+            flag = true;
+        }
+        else if (creep.store.getUsedCapacity() == 0) {
+            // 否则如果能量空了 , 进入获取能量的阶段
+            creep.memory.status = CREEP_STATUS_PICKUP;
+            flag = true;
+        }
     }
     else if (creep.memory.status === CREEP_STATUS_BUILD && (creep.memory.target === undefined || creep.store.getUsedCapacity() <= 0)) {
         creep.memory.status = CREEP_STATUS_CARRY;
@@ -43,7 +55,7 @@ function change_creep_status(creep: Creep) {
 }
 
 /**
- * 自主 捡掉落能量 / 采能量 / 建造建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
+ * 自主 捡掉落能量 / 采能量 / 建造(修)建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
  * @param creep 
  */
 export function run_basic(creep: Creep) {
@@ -66,12 +78,13 @@ export function run_basic(creep: Creep) {
     if (creep.memory.status === CREEP_STATUS_PICKUP) {
         const t = creep.memory.target;
         if (t === undefined || Game.getObjectById(t) === null) {
+            delete creep.memory.target;
             const res = creep.room.find(FIND_DROPPED_RESOURCES);
             if (res.length) {
                 creep.memory.target = res[0].id;
             }
         }
-        if (t === undefined || Game.getObjectById(t) === null) { return; }
+        if (t === undefined) { return; }
         const target: Resource = Game.getObjectById(t);
         const status_code = creep.pickup(target);
         if (status_code === ERR_NOT_IN_RANGE) {
@@ -81,12 +94,36 @@ export function run_basic(creep: Creep) {
 
     // 在采集状态时采集能量
     if (creep.memory.status === CREEP_STATUS_HARVEST) {
+        let source: Source = Game.getObjectById(creep.memory.source);
+        if (source === null || source.room.memory.sources[source.id].reserved > 0) {
+            delete creep.memory.source;
+        }
         if (creep.memory.source === undefined) {
             creep.memory.source = assign_source(creep.pos);
         }
-        const source = Game.getObjectById(creep.memory.source);
+        source = Game.getObjectById(creep.memory.source);
         if (creep.harvest(source) === ERR_NOT_IN_RANGE) {
             creep.moveTo(source, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+    }
+
+    // 在修复状态时修建筑 / 除了墙
+    if (creep.memory.status === CREEP_STATUS_REPAIR) {
+        let target: Structure = Game.getObjectById(creep.memory.target);
+        if (target === null || target.hits === target.hitsMax) { delete creep.memory.target; }
+        if (creep.memory.target === undefined) {
+            const res = creep.room.find(FIND_STRUCTURES, {
+                filter: (o) => {
+                    return o.hits != o.hitsMax
+                        && o.structureType != STRUCTURE_WALL
+                        && o.structureType != STRUCTURE_RAMPART;
+                }
+            });
+            if (res.length) { creep.memory.target = res[random(0, 1000, false) % res.length].id; }
+        }
+        target = Game.getObjectById(creep.memory.target);
+        if (creep.repair(target) === ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
         }
     }
 

@@ -37,8 +37,8 @@ export function run(room: Room) {
         if (room.memory.sources[c.id].pc === undefined) {
             room.memory.sources[c.id].pc = get_source_pc(c);
         }
-        if (room.memory.sources[c.id].nn === undefined) {
-            room.memory.sources[c.id].nn = room.memory.sources[c.id].pc;
+        if (room.memory.sources[c.id].cc === undefined) {
+            room.memory.sources[c.id].cc = room.memory.sources[c.id].pc;
         }
         // 锁计数递降
         if (room.memory.sources[c.id].reserved > 0) {
@@ -52,7 +52,10 @@ export function run(room: Room) {
 
 function own_source(id: string) {
     const source: Source = Game.getObjectById(id);
-    --source.room.memory.sources[id].nn;
+    --source.room.memory.sources[id].cc;
+    if (source.room.memory.sources[id].cc < 0) {
+        console.log("Source 分配出现异常!!!");
+    }
 }
 
 /**
@@ -69,7 +72,7 @@ export function get_source(pos: RoomPosition, lim = true) {
             FIND_SOURCES,
             {
                 filter: (source) => {
-                    return (source.room.memory.sources[source.id].nn > 0 || lim)
+                    return (source.room.memory.sources[source.id].cc > 0 || !lim)
                         && source.room.memory.sources[source.id].reserved == 0;
                 }
             }
@@ -92,12 +95,7 @@ export function assign_source(pos: RoomPosition) {
 
 export function release_source(memo: CreepMemory) {
     const source: Source = Game.getObjectById(memo.source);
-    const num = source.room.memory.sources[source.id].nn;
-    if (num <= 0) {
-        console.log(`Source ${source.id} 已被使用的数量为 0 时却发起了释放`);
-        return;
-    }
-    else {
-        source.room.memory.sources[source.id].nn = num - 1;
-    }
+    if (source === null) { return; }
+    const num = source.room.memory.sources[source.id].cc;
+    source.room.memory.sources[source.id].cc = num + 1;
 }

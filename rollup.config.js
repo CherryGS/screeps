@@ -19,7 +19,7 @@ const pluginDeploy = config && config.copyPath ?
     copy({
         targets: [
             {
-                src: "dist/main.ts",
+                src: "dist/main.js",
                 dest: config.copyPath
             },
             {

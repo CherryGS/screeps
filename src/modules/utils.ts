@@ -102,13 +102,15 @@ export function remove_loc(pos: RoomPosition) {
     }
 }
 
-const lis = [TOP_LEFT, TOP, TOP_RIGHT,
-    LEFT, -1, RIGHT,
-    BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT];
+const lis: Array<DirectionConstant> = [
+    TOP_LEFT, TOP, TOP_RIGHT,
+    LEFT, TOP, RIGHT,
+    BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT
+];
 export function random_move(creep: Creep) {
-    let r;
+    let r: number;
     while (r != -1) {
         r = random(0, 8);
-        if (r != 3 && creep.move(r) == OK) { break; }
+        if (r != 4 && creep.move(lis[r]) == OK) { break; }
     }
 }

@@ -49,7 +49,6 @@ export const init_matrix = {
                 return !movalbe(o.structureType);
             }
         );
-
         // 根据建筑类型赋值
         for (const c of res) {
             tmp.push(
@@ -129,7 +128,7 @@ export function set_cost_matrix(k: Array<{ pos: RoomPosition, val: number }>) {
     }
     // 更新内存
     for (const name of name_set) {
-        Game.rooms[name].memory.map = cost_matrix_cache.get(name).serialize();
+        Game.rooms[name].memory.map = cost_cache.get(name).serialize();
     }
 }
 

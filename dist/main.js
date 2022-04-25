@@ -15697,14 +15697,16 @@ function remove_loc(pos) {
         }
     }
 }
-[TOP_LEFT, TOP, TOP_RIGHT,
-    LEFT, -1, RIGHT,
-    BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT];
+const lis = [
+    TOP_LEFT, TOP, TOP_RIGHT,
+    LEFT, TOP, RIGHT,
+    BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT
+];
 function random_move(creep) {
     let r;
     while (r != -1) {
         r = lodash.exports.random(0, 8);
-        if (r != 3 && creep.move(r) == OK) {
+        if (r != 4 && creep.move(lis[r]) == OK) {
             break;
         }
     }
@@ -15816,6 +15818,7 @@ const CREEP_STATUS_REPAIR = "repairing";
 const CREEP_STATUS_BUILD = "building";
 const CREEP_STATUS_TRANSFER = "transferring";
 const CREEP_STATUS_WITHDRAW = "withdrawing";
+const CREEP_STATUS_UPGRADE = "upgrading";
 const EXTENSION_LEVEL_INFO = {
     1: [0, 0],
     2: [5, 50],
@@ -15958,7 +15961,7 @@ function set_cost_matrix(k) {
     }
     // 更新内存
     for (const name of name_set) {
-        Game.rooms[name].memory.map = cost_matrix_cache.get(name).serialize();
+        Game.rooms[name].memory.map = cost_cache.get(name).serialize();
     }
 }
 /**
@@ -16152,29 +16155,55 @@ function build_processor(room) {
     }
 }
 
-const flag_command = {
-    // 清除图中所用工地
-    f1: {
-        run(room) {
-            const f = room.lookForAt(LOOK_FLAGS, 0, 0);
-            if (f.length === 0) {
-                const res = room.find(FIND_MY_CONSTRUCTION_SITES);
-                for (const c of res) {
-                    c.remove();
-                }
-                this.init(room);
-                console.log("旗语 : '清除所有工地'已触发");
+// 清除图中所用工地
+const f1 = {
+    run(room) {
+        const f = room.lookForAt(LOOK_FLAGS, 0, 0);
+        if (f.length === 0) {
+            const res = room.find(FIND_MY_CONSTRUCTION_SITES);
+            for (const c of res) {
+                c.remove();
             }
-        },
-        init(room) {
-            room.createFlag(0, 0, "remove all constructionsites");
+            console.log("旗语 : '清除所有工地'已触发");
         }
     },
     init(room) {
-        this.f1.init(room);
+        room.createFlag(0, 0, "移除所有建筑工地");
+    }
+};
+// 刷新道路系统
+const f2 = {
+    run(room) {
+        const f = room.lookForAt(LOOK_FLAGS, 0, 1);
+        if (f.length === 0) {
+            const lis = new Array();
+            init_matrix.run(room);
+            lis.push(...room.find(FIND_MY_CONSTRUCTION_SITES));
+            lis.push(...room.find(FIND_MY_STRUCTURES));
+            for (const r1 of lis) {
+                for (const r2 of lis) {
+                    if (r1 != r2) {
+                        update_road(r1.pos, r2.pos);
+                    }
+                }
+            }
+            console.log("旗语 : '更新道路'已触发");
+        }
+    },
+    init(room) {
+        room.createFlag(0, 1, "根据建筑/工地更新道路规划");
+    }
+};
+const flag_command = {
+    init(room) {
+        f1.init(room);
+        f2.init(room);
     },
     run(room) {
-        this.f1.run(room);
+        f1.run(room);
+        f1.init(room);
+        f2.run(room);
+        f2.init(room);
     }
 };
 
@@ -16219,29 +16248,29 @@ function create_basic(room) {
 }
 
 function create_builder(room) {
-    const cnt = 2 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_BUILDER; } }).length;
+    const cnt = 3 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_BUILDER; } }).length;
     if (cnt > 0) {
-        create_creep_by_room(room, 1, ["work", "work", "carry", "carry", "move", "move"], CREEP_ROLE_BUILDER, { memory: { role: CREEP_ROLE_BUILDER } });
+        create_creep_by_room(room, 1, ["work", "work", "move", "carry", "carry", "move", "carry", "carry", "move", "carry", "carry", "move"], CREEP_ROLE_BUILDER, { memory: { role: CREEP_ROLE_BUILDER } });
     }
 }
 
 function create_carrier(room) {
-    const cnt = 1 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_CARRYER; } }).length;
+    const cnt = 2 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_CARRYER; } }).length;
     if (cnt > 0) {
-        create_creep_by_room(room, 1, ["carry", "carry", "carry", "carry", "move", "move"], CREEP_ROLE_CARRYER, { memory: { role: CREEP_ROLE_CARRYER } });
+        create_creep_by_room(room, 1, ["carry", "carry", "move", "carry", "carry", "move", "carry", "carry", "move", "carry", "carry", "move"], CREEP_ROLE_CARRYER, { memory: { role: CREEP_ROLE_CARRYER } });
     }
 }
 
 const menu = [
-    ["work", "work", "work", "work", "work", "move"],
-    ["work", "work", "work", "work", "move"],
+    ["work", "work", "work", "work", "work", "move", "move", "move"],
+    ["work", "work", "work", "work", "move", "move"],
     ["work", "work", "work", "move"],
     ["work", "work", "move"],
 ];
 function create_harvester(room) {
     const cnt = room.find(FIND_SOURCES).length - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_HARESTER; } }).length;
     if (cnt > 0) {
-        create_creep_by_room(room, 1, menu[3], CREEP_ROLE_HARESTER, { memory: { role: CREEP_ROLE_HARESTER } });
+        create_creep_by_room(room, 1, menu[0], CREEP_ROLE_HARESTER, { memory: { role: CREEP_ROLE_HARESTER } });
     }
 }
 
@@ -16428,16 +16457,40 @@ function run_basicer(creep) {
 }
 
 /**
- * 将 Container 中的能量运到其他存储能量的部分中(最近的)
+ * 离开道路
+ * @param creep
+ * @returns
+ */
+function move_away(creep) {
+    if (creep.memory.target === undefined) {
+        if (lodash.exports.filter(creep.room.lookForAt(LOOK_STRUCTURES, creep), (o) => { return o.structureType == STRUCTURE_ROAD; }).length != 0) {
+            random_move(creep);
+        }
+        return;
+    }
+}
+
+/**
+ * 将 Container 中的能量运到其他存储能量的部分中(最近的) / 拣能量
  */
 function run_carrier(creep) {
     let flag = false;
     if (creep.memory.status === undefined) {
-        creep.memory.status = CREEP_STATUS_WITHDRAW;
+        creep.memory.status = CREEP_STATUS_PICKUP;
         flag = true;
     }
+    else if (creep.memory.status === CREEP_STATUS_PICKUP) {
+        if (creep.store.getFreeCapacity() <= 0) {
+            creep.memory.status = CREEP_STATUS_TRANSFER;
+            flag = true;
+        }
+        else if (creep.memory.target === undefined) {
+            creep.memory.status = CREEP_STATUS_WITHDRAW;
+            flag = true;
+        }
+    }
     else if (creep.memory.status === CREEP_STATUS_WITHDRAW) {
-        if (creep.memory.target === undefined || creep.store.getFreeCapacity() <= 0) {
+        if (creep.store.getFreeCapacity() <= 0 || creep.memory.target === undefined) {
             creep.memory.status = CREEP_STATUS_TRANSFER;
             flag = true;
         }
@@ -16451,12 +16504,41 @@ function run_carrier(creep) {
     if (flag == true) {
         delete creep.memory.target;
     }
+    if (creep.memory.status == CREEP_STATUS_PICKUP) {
+        if (creep.memory.target === undefined) {
+            const res = lodash.exports.sortBy(creep.room.find(FIND_DROPPED_RESOURCES), (o) => {
+                return eudis(o.pos, creep.pos);
+            });
+            if (res.length) {
+                creep.memory.target = res[0].id;
+            }
+        }
+        if (creep.memory.target === undefined) {
+            move_away(creep);
+            return;
+        }
+        const target = Game.getObjectById(creep.memory.target);
+        if (target === null) {
+            delete creep.memory.target;
+            return;
+        }
+        const status_code = creep.pickup(target);
+        if (status_code === ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+        else if (status_code === ERR_FULL) {
+            delete creep.memory.target;
+        }
+        else if (status_code !== OK) {
+            console.log(`Carrier ${creep.name} 在从 (${target.pos.x}, ${target.pos.y}) 捡垃圾时出现错误 ${status_code} `);
+        }
+    }
     if (creep.memory.status == CREEP_STATUS_WITHDRAW) {
         if (creep.memory.target === undefined) {
             const res = lodash.exports.sortBy(creep.room.find(FIND_STRUCTURES, {
                 filter: (o) => {
                     return (o.structureType === STRUCTURE_CONTAINER)
-                        && (o.store.getUsedCapacity() << 1) > (o.store.getCapacity());
+                        && o.store.getUsedCapacity() >= creep.store.getFreeCapacity();
                 }
             }), (o) => {
                 return eudis(o.pos, creep.pos);
@@ -16466,9 +16548,7 @@ function run_carrier(creep) {
             }
         }
         if (creep.memory.target === undefined) {
-            if (lodash.exports.filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y), (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                random_move(creep);
-            }
+            move_away(creep);
             return;
         }
         const target = Game.getObjectById(creep.memory.target);
@@ -16484,6 +16564,18 @@ function run_carrier(creep) {
         }
     }
     if (creep.memory.status == CREEP_STATUS_TRANSFER) {
+        if (creep.store.energy <= 0) {
+            return;
+        }
+        if (Game.getObjectById(creep.memory.target) === null) {
+            delete creep.memory.target;
+        }
+        if (creep.memory.target !== undefined) {
+            const target = Game.getObjectById(creep.memory.target);
+            if (target.store.getFreeCapacity(RESOURCE_ENERGY) <= 0) {
+                delete creep.memory.target;
+            }
+        }
         if (creep.memory.target === undefined) {
             const res = lodash.exports.sortBy(creep.room.find(FIND_MY_STRUCTURES, {
                 filter: (o) => {
@@ -16500,9 +16592,7 @@ function run_carrier(creep) {
             }
         }
         if (creep.memory.target === undefined) {
-            if (lodash.exports.filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y), (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                random_move(creep);
-            }
+            move_away(creep);
             return;
         }
         const target = Game.getObjectById(creep.memory.target);
@@ -16510,7 +16600,7 @@ function run_carrier(creep) {
         if (status_code === ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
         }
-        else if (status_code === ERR_FULL || status_code === ERR_NOT_ENOUGH_RESOURCES) {
+        else if (status_code === ERR_NOT_ENOUGH_RESOURCES) {
             delete creep.memory.target;
         }
         else if (status_code !== OK) {
@@ -16544,6 +16634,12 @@ function run_builder(creep) {
     }
     else if (creep.memory.status === CREEP_STATUS_REPAIR) {
         if (creep.store.energy == 0 || creep.memory.target === undefined) {
+            creep.memory.status = CREEP_STATUS_UPGRADE;
+            flag = true;
+        }
+    }
+    else if (creep.memory.status === CREEP_STATUS_UPGRADE) {
+        if (creep.store.energy == 0 || creep.memory.target === undefined) {
             creep.memory.status = undefined;
             flag = true;
         }
@@ -16555,10 +16651,9 @@ function run_builder(creep) {
         if (creep.memory.target === undefined) {
             const res = lodash.exports.sortBy(creep.room.find(FIND_STRUCTURES, {
                 filter: (o) => {
-                    return (o.structureType === STRUCTURE_EXTENSION
-                        || o.structureType === STRUCTURE_STORAGE
+                    return (o.structureType === STRUCTURE_STORAGE
                         || o.structureType === STRUCTURE_CONTAINER)
-                        && o.store.energy > 10;
+                        && o.store.energy >= creep.store.getFreeCapacity(RESOURCE_ENERGY);
                 }
             }), (o) => {
                 return eudis(o.pos, creep.pos);
@@ -16568,9 +16663,7 @@ function run_builder(creep) {
             }
         }
         if (creep.memory.target === undefined) {
-            if (lodash.exports.filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y), (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                random_move(creep);
-            }
+            move_away(creep);
             return;
         }
         const target = Game.getObjectById(creep.memory.target);
@@ -16633,9 +16726,7 @@ function run_builder(creep) {
         }
         if (creep.memory.target === undefined) {
             if (creep.memory.target === undefined) {
-                if (lodash.exports.filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y), (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                    random_move(creep);
-                }
+                move_away(creep);
                 return;
             }
             return;
@@ -16650,6 +16741,25 @@ function run_builder(creep) {
         }
         else if (status_code != OK) {
             console.log(`Creep ${creep.name} 在修 ${target.id} 时出现错误 ${status_code} `);
+        }
+    }
+    if (creep.memory.role == CREEP_STATUS_UPGRADE) {
+        if (creep.store.energy <= 0) {
+            return;
+        }
+        if (creep.memory.target === undefined) {
+            creep.memory.target = creep.room.controller.id;
+        }
+        const target = Game.getObjectById(creep.memory.target);
+        const status_code = creep.upgradeController(target);
+        if (status_code == ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+        else if (status_code == ERR_NOT_ENOUGH_ENERGY) {
+            delete creep.memory.target;
+        }
+        else if (status_code != OK) {
+            console.log(`Creep ${creep.name} 在升级控制器 ${target.id} 时出现错误 ${status_code} `);
         }
     }
 }
@@ -16694,10 +16804,6 @@ function run_harvester(creep) {
 function run() {
     // 初始化
     // init_change();
-    // 初始化旗语
-    for (const room_hash in Game.rooms) {
-        flag_command.run(Game.rooms[room_hash]);
-    }
     // 清理已死亡 creeps 内存
     for (const name in Memory.creeps) {
         if (!Game.creeps[name]) {
@@ -16720,6 +16826,10 @@ function run() {
         if (room.memory.main_spawn === undefined) {
             room.memory.main_spawn = room.find(FIND_MY_SPAWNS)[0].name;
         }
+    }
+    // 初始化旗语
+    for (const room_hash in Game.rooms) {
+        flag_command.run(Game.rooms[room_hash]);
     }
     // 对每个房间执行建筑进程
     for (const room_hash in Game.rooms) {

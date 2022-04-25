@@ -9,6 +9,7 @@ export const CREEP_STATUS_REPAIR = "repairing";
 export const CREEP_STATUS_BUILD = "building";
 export const CREEP_STATUS_TRANSFER = "transferring";
 export const CREEP_STATUS_WITHDRAW = "withdrawing";
+export const CREEP_STATUS_UPGRADE = "upgrading";
 
 export const EXTENSION_LEVEL_INFO = {
     1: [0, 0],

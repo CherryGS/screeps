@@ -1,6 +1,7 @@
 import { eudis, random_move } from "@/modules/utils";
 import { filter, sortBy } from "lodash";
-import { CREEP_STATUS_TRANSFER, CREEP_STATUS_BUILD, CREEP_STATUS_REPAIR, CREEP_STATUS_WITHDRAW } from "../const";
+import { CREEP_STATUS_TRANSFER, CREEP_STATUS_BUILD, CREEP_STATUS_REPAIR, CREEP_STATUS_WITHDRAW, CREEP_STATUS_UPGRADE } from "../const";
+import { move_away } from "./utils";
 
 /**
  * 修 / 建 , 不会主动开采能量
@@ -27,22 +28,29 @@ export function run_builder(creep: Creep) {
     }
     else if (creep.memory.status === CREEP_STATUS_REPAIR) {
         if (creep.store.energy == 0 || creep.memory.target === undefined) {
+            creep.memory.status = CREEP_STATUS_UPGRADE;
+            flag = true;
+        }
+    }
+    else if (creep.memory.status === CREEP_STATUS_UPGRADE) {
+        if (creep.store.energy == 0 || creep.memory.target === undefined) {
             creep.memory.status = undefined;
             flag = true;
         }
     }
+
     if (flag == true) {
         delete creep.memory.target;
     }
+
     if (creep.memory.status == CREEP_STATUS_WITHDRAW) {
         if (creep.memory.target === undefined) {
             const res = sortBy(
                 creep.room.find(FIND_STRUCTURES, {
                     filter: (o) => {
-                        return (o.structureType === STRUCTURE_EXTENSION
-                            || o.structureType === STRUCTURE_STORAGE
+                        return (o.structureType === STRUCTURE_STORAGE
                             || o.structureType === STRUCTURE_CONTAINER)
-                            && o.store.energy > 10;
+                            && o.store.energy >= creep.store.getFreeCapacity(RESOURCE_ENERGY);
                     }
                 }),
                 (o) => {
@@ -51,10 +59,7 @@ export function run_builder(creep: Creep) {
             if (res.length) { creep.memory.target = res[0].id; }
         }
         if (creep.memory.target === undefined) {
-            if (filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y),
-                (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                random_move(creep);
-            }
+            move_away(creep);
             return;
         }
         const target: AnyStoreStructure = Game.getObjectById(creep.memory.target);
@@ -117,10 +122,7 @@ export function run_builder(creep: Creep) {
         }
         if (creep.memory.target === undefined) {
             if (creep.memory.target === undefined) {
-                if (filter(creep.room.lookForAt(LOOK_STRUCTURES, creep.pos.x, creep.pos.y),
-                    (o) => { return o.structureType == STRUCTURE_ROAD; }).length) {
-                    random_move(creep);
-                }
+                move_away(creep);
                 return;
             }
             return;
@@ -135,6 +137,24 @@ export function run_builder(creep: Creep) {
         }
         else if (status_code != OK) {
             console.log(`Creep ${creep.name} 在修 ${target.id} 时出现错误 ${status_code} `);
+        }
+    }
+
+    if (creep.memory.role == CREEP_STATUS_UPGRADE) {
+        if (creep.store.energy <= 0) { return; }
+        if (creep.memory.target === undefined) {
+            creep.memory.target = creep.room.controller.id;
+        }
+        const target: StructureController = Game.getObjectById(creep.memory.target);
+        const status_code = creep.upgradeController(target);
+        if (status_code == ERR_NOT_IN_RANGE) {
+            creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        }
+        else if (status_code == ERR_NOT_ENOUGH_ENERGY) {
+            delete creep.memory.target;
+        }
+        else if (status_code != OK) {
+            console.log(`Creep ${creep.name} 在升级控制器 ${target.id} 时出现错误 ${status_code} `);
         }
     }
 }

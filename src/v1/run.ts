@@ -17,11 +17,6 @@ export function run() {
     // 初始化
     // init_change();
 
-    // 初始化旗语
-    for (const room_hash in Game.rooms) {
-        flag_command.run(Game.rooms[room_hash]);
-    }
-
     // 清理已死亡 creeps 内存
     for (const name in Memory.creeps) {
         if (!Game.creeps[name]) {
@@ -47,6 +42,11 @@ export function run() {
         if (room.memory.main_spawn === undefined) {
             room.memory.main_spawn = room.find(FIND_MY_SPAWNS)[0].name;
         }
+    }
+
+    // 初始化旗语
+    for (const room_hash in Game.rooms) {
+        flag_command.run(Game.rooms[room_hash]);
     }
 
     // 对每个房间执行建筑进程

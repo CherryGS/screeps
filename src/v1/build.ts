@@ -1,4 +1,4 @@
-import { is_cleaning, lookAtAreaDo, movalbe, passable, remove_loc } from "@/modules/utils";
+import { lookAtAreaDo, movalbe, remove_loc } from "@/modules/utils";
 import { filter, size } from "lodash";
 import { EXTENSION_LEVEL_INFO, MAP_COST_STRUCTURE, MAP_COST_TERRIAN_BLOCK } from "./const";
 import { map_search, update_road } from "./map";

@@ -1,7 +1,7 @@
 import { eudis } from "@/modules/utils";
 import { random, sortBy } from "lodash";
-import { CREEP_STATUS_BUILD, CREEP_STATUS_CARRY, CREEP_STATUS_HARVEST, CREEP_STATUS_PICKUP, CREEP_STATUS_REPAIR } from "./const";
-import { assign_source } from "./source_manager";
+import { CREEP_STATUS_PICKUP, CREEP_STATUS_REPAIR, CREEP_STATUS_HARVEST, CREEP_STATUS_BUILD, CREEP_STATUS_TRANSFER } from "../const";
+import { assign_source } from "../source_manager";
 
 /**
  * 切换 creep 状态并初始化一些变量
@@ -41,10 +41,10 @@ function change_creep_status(creep: Creep) {
         }
     }
     else if (creep.memory.status === CREEP_STATUS_BUILD && (creep.memory.target === undefined || creep.store.getUsedCapacity() <= 0)) {
-        creep.memory.status = CREEP_STATUS_CARRY;
+        creep.memory.status = CREEP_STATUS_TRANSFER;
         flag = true;
     }
-    else if (creep.memory.status === CREEP_STATUS_CARRY && creep.store.getUsedCapacity() <= 0) {
+    else if (creep.memory.status === CREEP_STATUS_TRANSFER && creep.store.getUsedCapacity() <= 0) {
         creep.memory.status = undefined;
         flag = true;
     }
@@ -55,10 +55,10 @@ function change_creep_status(creep: Creep) {
 }
 
 /**
- * 自主 捡掉落能量 / 采能量 / 建造(修)建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
+ * 捡掉落能量 / 采能量 / 建造(修)建筑 / 运输 / 升级控制器 (优先级按从前到后排序)
  * @param creep 
  */
-export function run_basic(creep: Creep) {
+export function run_basicer(creep: Creep) {
     // 判断是否满足条件 ( work + carry + move )
     let flag = 0;
     for (const c of creep.body) {
@@ -95,6 +95,7 @@ export function run_basic(creep: Creep) {
     // 在采集状态时采集能量
     if (creep.memory.status === CREEP_STATUS_HARVEST) {
         let source: Source = Game.getObjectById(creep.memory.source);
+        // 如果 source 不存在或者被上锁了 , 那么删除这个 source 尝试重新分配
         if (source === null || source.room.memory.sources[source.id].reserved > 0) {
             delete creep.memory.source;
         }
@@ -147,7 +148,7 @@ export function run_basic(creep: Creep) {
     }
 
     // 在运输状态时运输能量到 Extension / Spawn
-    if (creep.memory.status === CREEP_STATUS_CARRY) {
+    if (creep.memory.status === CREEP_STATUS_TRANSFER) {
         if (creep.memory.target === undefined) {
             const target = creep.room.find(
                 FIND_MY_STRUCTURES,

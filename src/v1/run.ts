@@ -1,12 +1,17 @@
-import { run_basic } from "./role.basic";
-import { CREEP_ROLE_BASIC, CREEP_ROLE_HARESTER } from "./const";
-import { create_basic, create_harvester } from "./create_screep";
-import { build_processor } from "./build";
 import { draw_cost_matrix } from "@/modules/utils";
-import { flag_command } from "./flag_command";
 import { del_creep } from "./delete";
+import { build_processor } from "./build";
+import { flag_command } from "./flag_command";
 import { run as run_source } from "./source_manager";
-import { run_harvester } from "./role.harvester";
+import { create_basic } from "./spawn/basicer";
+import { create_builder } from "./spawn/builder";
+import { create_carrier } from "./spawn/carrier";
+import { create_harvester } from "./spawn/harvester";
+import { run_basicer } from "./role/role.basicer";
+import { run_carrier } from "./role/role.carrier";
+import { run_builder } from "./role/role.builder";
+import { run_harvester } from "./role/role.harvester";
+import { CREEP_ROLE_BASIC, CREEP_ROLE_CARRYER, CREEP_ROLE_BUILDER, CREEP_ROLE_HARESTER } from "./const";
 
 export function run() {
     // 初始化
@@ -53,18 +58,20 @@ export function run() {
 
     // 造 Creep
     for (const room_hash in Game.rooms) {
-        create_harvester(Game.rooms[room_hash]);
-        create_basic(Game.rooms[room_hash]);
+        const room = Game.rooms[room_hash];
+        create_harvester(room);
+        create_builder(room);
+        create_carrier(room);
+        create_basic(room);
     }
-
     // 运行 creep
     for (const creep_hash in Game.creeps) {
         const creep = Game.creeps[creep_hash];
-        if (creep.memory.role === CREEP_ROLE_BASIC) {
-            run_basic(creep);
-        }
-        else if (creep.memory.role === CREEP_ROLE_HARESTER) {
-            run_harvester(creep);
-        }
+        if (creep.spawning == true) { continue; }
+        const r = creep.memory.role;
+        if (r == CREEP_ROLE_BASIC) { run_basicer(creep); }
+        else if (r == CREEP_ROLE_CARRYER) { run_carrier(creep); }
+        else if (r == CREEP_ROLE_BUILDER) { run_builder(creep); }
+        else if (r == CREEP_ROLE_HARESTER) { run_harvester(creep); }
     }
 }

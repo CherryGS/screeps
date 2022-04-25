@@ -12,7 +12,7 @@
             ],
             "@modules/*": [
                 "./src/modules/*"
-            ]
+            ],
         }
     },
     "exclude": [

@@ -1,4 +1,4 @@
-import { memoize } from "lodash";
+import { memoize, random } from "lodash";
 
 export function lookAtAreaDo(
     left_x: number,
@@ -99,5 +99,16 @@ export function remove_loc(pos: RoomPosition) {
             console.log(`取消了工地 ${c.structureType} 在 (${pos.x},${pos.y})`);
             c.remove();
         }
+    }
+}
+
+const lis = [TOP_LEFT, TOP, TOP_RIGHT,
+    LEFT, -1, RIGHT,
+    BOTTOM_LEFT, BOTTOM, BOTTOM_RIGHT];
+export function random_move(creep: Creep) {
+    let r;
+    while (r != -1) {
+        r = random(0, 8);
+        if (r != 3 && creep.move(r) == OK) { break; }
     }
 }

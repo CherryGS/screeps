@@ -1,7 +1,7 @@
 import { eudis, lookAtAreaDo, passable } from "@/modules/utils";
-import { sortBy } from "lodash";
+import { memoize, sortBy } from "lodash";
 
-function get_source_pc(source: Source) {
+const get_source_pc = memoize((source: Source) => {
     let sum = 0;
     lookAtAreaDo(
         source.pos.x - 1,
@@ -13,14 +13,14 @@ function get_source_pc(source: Source) {
         }
     );
     return sum;
-}
+});
 
-function get_all_pc(room: Room) {
+export const get_all_pc = memoize((room: Room) => {
     let sum = 0;
     const sources = room.find(FIND_SOURCES);
     for (const c of sources) { sum += get_source_pc(c); }
     return sum;
-}
+});
 
 export function run(room: Room) {
     // 降低 Source 的 reserved 计数

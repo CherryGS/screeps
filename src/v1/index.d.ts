@@ -25,6 +25,11 @@ interface CreepMemory {
     role?: string;
 
     /**
+     * 用来运行 creep 的函数
+     */
+    run?: (creep: Creep) => unknown;
+
+    /**
      * Mineral 的 id
      */
     source?: Id<Source>;

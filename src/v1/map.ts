@@ -1,6 +1,6 @@
 import { movalbe } from "@/modules/utils";
 import { filter } from "lodash";
-import { MAP_COST_TERRIAN_GRASS, MAP_COST_TERRIAN_SWAMP, MAP_COST_TERRIAN_BLOCK, MAP_COST_STRUCTURE } from "./const";
+import { MAP_COST_STRUCTURE, MAP_COST_TERRIAN_BLOCK, MAP_COST_TERRIAN_SWAMP, MAP_COST_TERRIAN_GRASS } from "./const";
 
 // 模块中的 CostMatrix 缓存 , 要保证及时更新
 const cost_matrix_cache = new Map<string, CostMatrix>();

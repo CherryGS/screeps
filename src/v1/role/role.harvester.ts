@@ -1,5 +1,5 @@
 import { lookAtAreaDo } from "@/modules/utils";
-import { get_source } from "./source_manager";
+import { get_source } from "../source_manager";
 
 export function run_harvester(creep: Creep) {
     if (creep.memory.source === undefined) {
@@ -21,7 +21,9 @@ export function run_harvester(creep: Creep) {
             }
         });
     }
+    // 给目标上锁
+    source.room.memory.sources[source.id].reserved = 2;
     const target: StructureContainer = Game.getObjectById(creep.memory.target);
-    if (creep.pos != target.pos) { creep.moveTo(target); }
+    if (creep.pos.x != target.pos.x || creep.pos.y != target.pos.y) { creep.moveTo(target); }
     else { creep.harvest(source); }
 }

@@ -15719,7 +15719,7 @@ const get_source_pc = lodash.exports.memoize((source) => {
     });
     return sum;
 });
-const get_all_pc = lodash.exports.memoize((room) => {
+lodash.exports.memoize((room) => {
     let sum = 0;
     const sources = room.find(FIND_SOURCES);
     for (const c of sources) {
@@ -16212,14 +16212,14 @@ function create_creep_by_room(room, cnt, body, name, opts) {
 
 function create_basic(room) {
     // 确定要生成的数量
-    const cnt = get_all_pc(room) - room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }).length;
+    const cnt = 0 - room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }).length;
     if (cnt != 0) {
         create_creep_by_room(room, 1, ["work", "carry", "carry", "move", "move"], CREEP_ROLE_BASIC, { memory: { role: CREEP_ROLE_BASIC }, });
     }
 }
 
 function create_builder(room) {
-    const cnt = 0 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_BUILDER; } }).length;
+    const cnt = 2 - room.find(FIND_MY_CREEPS, { filter: (o) => { return o.memory.role == CREEP_ROLE_BUILDER; } }).length;
     if (cnt > 0) {
         create_creep_by_room(room, 1, ["work", "work", "carry", "carry", "move", "move"], CREEP_ROLE_BUILDER, { memory: { role: CREEP_ROLE_BUILDER } });
     }

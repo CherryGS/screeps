@@ -16604,6 +16604,10 @@ function run_builder(creep) {
             return;
         }
         const target = Game.getObjectById(creep.memory.target);
+        if (target == null) {
+            delete creep.memory.target;
+            return;
+        }
         const status_code = creep.build(target);
         if (status_code == ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
@@ -16675,10 +16679,12 @@ function run_harvester(creep) {
         });
     }
     // 给目标上锁
+    creep.say("⚒️");
     source.room.memory.sources[source.id].reserved = 2;
     const target = Game.getObjectById(creep.memory.target);
     if (creep.pos.x != target.pos.x || creep.pos.y != target.pos.y) {
-        creep.moveTo(target);
+        creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
+        target.room.visual.text("🎯", target.pos);
     }
     else {
         creep.harvest(source);

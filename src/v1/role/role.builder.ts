@@ -90,6 +90,7 @@ export function run_builder(creep: Creep) {
             return;
         }
         const target: ConstructionSite = Game.getObjectById(creep.memory.target);
+        if (target == null) { delete creep.memory.target; return; }
         const status_code = creep.build(target);
         if (status_code == ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });

@@ -140,7 +140,7 @@ export function run_builder(creep: Creep) {
         }
     }
 
-    if (creep.memory.role == CREEP_STATUS_UPGRADE) {
+    if (creep.memory.status == CREEP_STATUS_UPGRADE) {
         if (creep.store.energy <= 0) { return; }
         if (creep.memory.target === undefined) {
             creep.memory.target = creep.room.controller.id;

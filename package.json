@@ -91,7 +91,8 @@
   },
   "scripts": {
     "build": "rollup -cw",
-    "push": "rollup -cw --environment DEST:main",
+    "main": "rollup -cw --environment DEST:main",
+    "dev": "rollup -cw --environment DEST:dev",
     "local": "rollup -cw --environment DEST:local",
     "test": "jest",
     "test-c": "jest --coverage"

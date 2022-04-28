@@ -69,6 +69,18 @@ export function run_carrier(creep: Creep) {
     if (creep.memory.status == CREEP_STATUS_WITHDRAW) {
         if (creep.memory.target === undefined) {
             const res = sortBy(
+                creep.room.find(FIND_TOMBSTONES, {
+                    filter: (o) => {
+                        return o.store.getUsedCapacity() > 0;
+                    }
+                }),
+                (o) => {
+                    return eudis(o.pos, creep.pos);
+                });
+            if (res.length) { creep.memory.target = res[0].id; }
+        }
+        if (creep.memory.target === undefined) {
+            const res = sortBy(
                 creep.room.find(FIND_STRUCTURES, {
                     filter: (o) => {
                         return (o.structureType === STRUCTURE_CONTAINER)
@@ -80,12 +92,15 @@ export function run_carrier(creep: Creep) {
                 });
             if (res.length) { creep.memory.target = res[0].id; }
         }
+
+
         if (creep.memory.target === undefined) {
             move_away(creep);
             return;
         }
 
-        const target: StructureContainer = Game.getObjectById(creep.memory.target);
+        const target: StructureContainer | Tombstone = Game.getObjectById(creep.memory.target);
+        if (target === null) { delete creep.memory.target; return; }
         const status_code = creep.withdraw(target, RESOURCE_ENERGY);
         if (status_code === ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });

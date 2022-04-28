@@ -16241,7 +16241,7 @@ function create_creep_by_room(room, cnt, body, name, opts) {
 
 function create_basic(room) {
     // 确定要生成的数量
-    const cnt = 0 - room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }).length;
+    const cnt = 2 - room.find(FIND_MY_CREEPS, { filter: { memory: { role: CREEP_ROLE_BASIC } }, }).length;
     if (cnt != 0) {
         create_creep_by_room(room, 1, ["work", "carry", "carry", "move", "move"], CREEP_ROLE_BASIC, { memory: { role: CREEP_ROLE_BASIC }, });
     }
@@ -16296,7 +16296,8 @@ function change_creep_status(creep) {
         }
     }
     else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
-        creep.memory.status = CREEP_STATUS_REPAIR;
+        // 这里把维修逻辑短路了
+        creep.memory.status = CREEP_STATUS_BUILD;
         flag = true;
     }
     else if (creep.memory.status === CREEP_STATUS_REPAIR) {
@@ -16535,6 +16536,18 @@ function run_carrier(creep) {
     }
     if (creep.memory.status == CREEP_STATUS_WITHDRAW) {
         if (creep.memory.target === undefined) {
+            const res = lodash.exports.sortBy(creep.room.find(FIND_TOMBSTONES, {
+                filter: (o) => {
+                    return o.store.getUsedCapacity() > 0;
+                }
+            }), (o) => {
+                return eudis(o.pos, creep.pos);
+            });
+            if (res.length) {
+                creep.memory.target = res[0].id;
+            }
+        }
+        if (creep.memory.target === undefined) {
             const res = lodash.exports.sortBy(creep.room.find(FIND_STRUCTURES, {
                 filter: (o) => {
                     return (o.structureType === STRUCTURE_CONTAINER)
@@ -16552,6 +16565,10 @@ function run_carrier(creep) {
             return;
         }
         const target = Game.getObjectById(creep.memory.target);
+        if (target === null) {
+            delete creep.memory.target;
+            return;
+        }
         const status_code = creep.withdraw(target, RESOURCE_ENERGY);
         if (status_code === ERR_NOT_IN_RANGE) {
             creep.moveTo(target, { visualizePathStyle: { stroke: "#ffffff" } });
@@ -16743,7 +16760,7 @@ function run_builder(creep) {
             console.log(`Creep ${creep.name} 在修 ${target.id} 时出现错误 ${status_code} `);
         }
     }
-    if (creep.memory.role == CREEP_STATUS_UPGRADE) {
+    if (creep.memory.status == CREEP_STATUS_UPGRADE) {
         if (creep.store.energy <= 0) {
             return;
         }

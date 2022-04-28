@@ -25,7 +25,8 @@ function change_creep_status(creep: Creep) {
         }
     }
     else if (creep.memory.status === CREEP_STATUS_HARVEST && creep.store.getFreeCapacity() <= 0) {
-        creep.memory.status = CREEP_STATUS_REPAIR;
+        // 这里把维修逻辑短路了
+        creep.memory.status = CREEP_STATUS_BUILD;
         flag = true;
     }
     else if (creep.memory.status === CREEP_STATUS_REPAIR) {
